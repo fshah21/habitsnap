@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'challengeDetailsScreen.dart';
 
 class GoalScreen extends StatefulWidget {
   const GoalScreen({super.key});
@@ -10,27 +12,28 @@ class GoalScreen extends StatefulWidget {
 class _GoalScreenState extends State<GoalScreen> {
   int _currentIndex = 0;
 
-  final List<Map<String, dynamic>> sampleGoals = [
-    {
-      'title': 'Drink Water',
-      'subtitle': 'Upload daily proof',
-      'image': null,
-    },
-    {
-      'title': 'Walk 5000 Steps',
-      'subtitle': 'Upload daily proof',
-      'image': null,
-    },
-    {
-      'title': 'Read 20 Pages',
-      'subtitle': 'Upload daily proof',
-      'image': null,
-    },
-  ];
+  /// 🔥 Firestore stream
+  Stream<List<Map<String, dynamic>>> discoverChallengesStream() {
+    return FirebaseFirestore.instance
+        .collection('challenges')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return {
+          'id': doc.id,
+          'title': doc['title'],
+          'description': doc['description'],
+          'rules': doc['rules'],
+          'participants': doc['participants'],
+          'duration': doc['duration'],
+        };
+      }).toList();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> _pages = [
+    final pages = [
       _buildDiscoverTab(),
       _buildJoinedTab(),
     ];
@@ -41,18 +44,18 @@ class _GoalScreenState extends State<GoalScreen> {
         backgroundColor: Colors.yellow[700],
         actions: [
           IconButton(
-            icon: CircleAvatar(
-              radius: 24,
+            icon: const CircleAvatar(
+              radius: 20,
               backgroundImage: AssetImage('assets/user.jpg'),
             ),
             onPressed: () {
-                // Navigate to profile screen
+              // Profile screen later
             },
           ),
           const SizedBox(width: 12),
         ],
       ),
-      body: _pages[_currentIndex],
+      body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
@@ -70,63 +73,115 @@ class _GoalScreenState extends State<GoalScreen> {
     );
   }
 
+  /// 🔍 DISCOVER TAB
   Widget _buildDiscoverTab() {
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: sampleGoals.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final goal = sampleGoals[index];
-        return Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 4,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  goal['title'],
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(goal['subtitle']),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // Upload image proof logic
-                      },
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Upload Proof'),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // Open chat for this goal
-                      },
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      label: const Text('Chat'),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: discoverChallengesStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No challenges found'));
+        }
+
+        final challenges = snapshot.data!;
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: challenges.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          itemBuilder: (context, index) {
+            final challenge = challenges[index];
+
+            return _buildChallengeCard(challenge);
+          },
         );
       },
     );
   }
 
+  /// 🧩 CHALLENGE CARD (clean separation)
+  Widget _buildChallengeCard(Map<String, dynamic> challenge) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CircleAvatar(
+              radius: 30,
+              backgroundImage: AssetImage('assets/user.jpg'),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    challenge['title'],
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${challenge['participants']} participants',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Duration: ${challenge['duration']} days',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          // Join logic next
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                        ),
+                        child: const Text(
+                          'Join',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChallengeDetailsScreen(
+                                challenge: challenge,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('View'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 👥 JOINED TAB (temporary reuse)
   Widget _buildJoinedTab() {
-    // For simplicity, just reuse the same cards
     return _buildDiscoverTab();
   }
 }
