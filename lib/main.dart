@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'onboardingScreen.dart';
 
 void main() {
   runApp(MyApp());
@@ -16,19 +17,23 @@ class MyApp extends StatelessWidget {
 }
 
 class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
   @override
-  _SplashScreenState createState() => _SplashScreenState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Navigate to home screen after 2 seconds
-    Timer(Duration(seconds: 2), () {
+
+    Timer(const Duration(seconds: 2), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => HomePage()),
+        MaterialPageRoute(
+          builder: (_) => const OnboardingScreen(),
+        ),
       );
     });
   }
@@ -36,70 +41,16 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.purple[100], // Light purple color
+      backgroundColor: Colors.purple.shade100,
       body: Center(
         child: Text(
-          'Splash Screen',
+          'Habit Buddy',
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Colors.purple[900],
+            color: Colors.purple.shade900,
           ),
         ),
-      ),
-    );
-  }
-}
-
-class HomePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.yellow,
-      body: Column(
-        children: [
-          Expanded(
-            flex: 7, // 70% of the screen
-            child: Center(
-              child: Container(), // Blank area to show no content
-            ),
-          ),
-          Expanded(
-            flex: 3, // 30% of the screen
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red, // Red color
-                    fixedSize: Size(200, 50),
-                  ),
-                  onPressed: () {
-                    // Navigate to Login Screen
-                  },
-                  child: Text(
-                    'LOG IN',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ),
-                SizedBox(height: 16),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue, // Blue color
-                    fixedSize: Size(200, 50),
-                  ),
-                  onPressed: () {
-                    // Navigate to Signup Screen
-                  },
-                  child: Text(
-                    'SIGN UP',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
