@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'goalScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -58,6 +59,10 @@ class _HomeScreenState extends State<HomeScreen> {
             // Sign in to Firebase
             UserCredential userCredential =
                 await FirebaseAuth.instance.signInWithCredential(credential);
+
+            final userId = userCredential.user!.uid;
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('userId', userId);
 
             print('Signed in as ${userCredential.user?.displayName}');
 

@@ -1,9 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ChallengeDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> challenge;
 
   const ChallengeDetailsScreen({super.key, required this.challenge});
+
+  Future<void> joinChallenge(String challengeId) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      // Not logged in → handle gracefully
+      print('User not logged in');
+      return;
+    }
+
+    final uid = user.uid;
+
+    final userChallengeRef = FirebaseFirestore.instance
+        .collection('userchallenges')
+        .doc(uid)
+        .collection('challenges')
+        .doc(challengeId);
+
+    await userChallengeRef.set({
+      'uid': uid,
+      'joinedAt': FieldValue.serverTimestamp(),
+      'status': 'active',
+    });
+
+    print('User joined challenge');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +94,9 @@ class ChallengeDetailsScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  // Join challenge logic next
+                onPressed: () async {
+                  final challengeId = challenge['id'];
+                  await joinChallenge(challengeId);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'challengeDetailsScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class GoalScreen extends StatefulWidget {
   const GoalScreen({super.key});
@@ -12,7 +14,23 @@ class GoalScreen extends StatefulWidget {
 class _GoalScreenState extends State<GoalScreen> {
   int _currentIndex = 0;
 
-  /// 🔥 Firestore stream
+  Stream<Set<String>> joinedChallengeIdsStream() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return const Stream.empty();
+    }
+
+    return FirebaseFirestore.instance
+        .collection('userchallenges')
+        .doc(uid)
+        .collection('challenges')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map((doc) => doc.id).toSet(),
+        );
+  }
+
   Stream<List<Map<String, dynamic>>> discoverChallengesStream() {
     return FirebaseFirestore.instance
         .collection('challenges')
@@ -30,6 +48,65 @@ class _GoalScreenState extends State<GoalScreen> {
       }).toList();
     });
   }
+
+  Future<void> joinChallenge(String challengeId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final uid = prefs.getString('userId');
+
+    final userChallengeRef = FirebaseFirestore.instance
+        .collection('userchallenges')
+        .doc(uid)
+        .collection('challenges')
+        .doc(challengeId);
+
+    await userChallengeRef.set({
+      'joinedAt': FieldValue.serverTimestamp(),
+      'status': 'active',
+    });
+
+    print('User joined challenge');
+  }
+
+  Stream<List<Map<String, dynamic>>> joinedChallengesStream() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return const Stream.empty();
+    }
+
+    final userChallengesRef = FirebaseFirestore.instance
+        .collection('userchallenges')
+        .doc(uid)
+        .collection('challenges');
+
+    return userChallengesRef.snapshots().asyncMap((snapshot) async {
+      if (snapshot.docs.isEmpty) return [];
+
+      final challengeIds = snapshot.docs.map((d) => d.id).toList();
+
+      // Firestore whereIn limit safety
+      if (challengeIds.length > 10) {
+        challengeIds.length = 10;
+      }
+
+      final challengesSnapshot = await FirebaseFirestore.instance
+          .collection('challenges')
+          .where(FieldPath.documentId, whereIn: challengeIds)
+          .get();
+
+      return challengesSnapshot.docs.map((doc) {
+        return {
+          'id': doc.id,
+          'title': doc['title'],
+          'description': doc['description'],
+          'rules': doc['rules'],
+          'participants': doc['participants'],
+          'duration': doc['duration'],
+        };
+      }).toList();
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -73,29 +150,47 @@ class _GoalScreenState extends State<GoalScreen> {
     );
   }
 
-  /// 🔍 DISCOVER TAB
   Widget _buildDiscoverTab() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: discoverChallengesStream(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<Set<String>>(
+      stream: joinedChallengeIdsStream(),
+      builder: (context, joinedSnapshot) {
+        if (joinedSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No challenges found'));
-        }
+        final joinedIds = joinedSnapshot.data ?? {};
 
-        final challenges = snapshot.data!;
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: discoverChallengesStream(),
+          builder: (context, challengesSnapshot) {
+            if (challengesSnapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: challenges.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 16),
-          itemBuilder: (context, index) {
-            final challenge = challenges[index];
+            if (!challengesSnapshot.hasData ||
+                challengesSnapshot.data!.isEmpty) {
+              return const Center(child: Text('No challenges found'));
+            }
 
-            return _buildChallengeCard(challenge);
+            final discoverChallenges = challengesSnapshot.data!
+                .where((c) => !joinedIds.contains(c['id']))
+                .toList();
+
+            if (discoverChallenges.isEmpty) {
+              return const Center(
+                child: Text('You have joined all available challenges 🎉'),
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: discoverChallenges.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                return _buildChallengeCard(discoverChallenges[index]);
+              },
+            );
           },
         );
       },
@@ -144,8 +239,9 @@ class _GoalScreenState extends State<GoalScreen> {
                   Row(
                     children: [
                       ElevatedButton(
-                        onPressed: () {
-                          // Join logic next
+                        onPressed: () async {
+                          await joinChallenge(challenge['id']);
+                          setState(() {});
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
@@ -180,8 +276,32 @@ class _GoalScreenState extends State<GoalScreen> {
     );
   }
 
-  /// 👥 JOINED TAB (temporary reuse)
   Widget _buildJoinedTab() {
-    return _buildDiscoverTab();
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: joinedChallengesStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Text('You have not joined any challenges yet'),
+          );
+        }
+
+        final challenges = snapshot.data!;
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: challenges.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          itemBuilder: (context, index) {
+            return _buildChallengeCard(challenges[index]);
+          },
+        );
+      },
+    );
   }
+
 }
