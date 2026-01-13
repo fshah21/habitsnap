@@ -22,6 +22,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final uid = FirebaseAuth.instance.currentUser!.uid;
+  final userEmail = FirebaseAuth.instance.currentUser!.email;
   File? _selectedImage;
   int currentDay = 1;
   DateTime? joinedAt;
@@ -30,6 +31,28 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     loadJoinedAt();
+  }
+
+  Color getColorForUser(String userId) {
+    final colors = [
+      Colors.red,
+      Colors.green,
+      Colors.blue,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.brown,
+      Colors.pink,
+    ];
+    final index = userId.codeUnits.fold(0, (prev, c) => prev + c) % colors.length;
+    return colors[index];
+  }
+
+  String getInitialsFromEmail(String email) {
+    if (email.isEmpty) return '?';
+    final atIndex = email.indexOf('@');
+    if (atIndex <= 0) return email[0].toUpperCase();
+    return email[0].toUpperCase();
   }
 
   Future<void> loadJoinedAt() async {
@@ -127,6 +150,7 @@ class _ChatScreenState extends State<ChatScreen> {
         .collection('messages')
         .add({
         'userId': uid,
+        'userEmail': userEmail,
         'text': text,
         'imageUrl': imageUrl,
         'createdAt': FieldValue.serverTimestamp(),
@@ -238,57 +262,95 @@ class _ChatScreenState extends State<ChatScreen> {
                     final data =
                         messages[index].data() as Map<String, dynamic>;
                     final isMe = data['userId'] == uid;
+                    final email = data['userEmail'] ?? 'user@example.com';
+                    print(email);
+                    final initials = getInitialsFromEmail(email);
+                    final avatarColor = getColorForUser(data['userId']);
 
-                    return Align(
-                      alignment:
-                          isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? Colors.green[200]
-                              : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (data['imageUrl'] != null)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 6),
-                                child: Image.network(
-                                  data['imageUrl'],
-                                  height: 150,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
+                     return Align(
+                          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Row(
+                            mainAxisAlignment:
+                                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (!isMe)
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: avatarColor,
+                                  child: Text(
+                                    initials,
+                                    style: const TextStyle(
+                                        color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(vertical: 6),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isMe ? Colors.green[200] : Colors.grey[300],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Image proof
+                                      if (data['imageUrl'] != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 6),
+                                          child: Image.network(
+                                            data['imageUrl'],
+                                            height: 150,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, progress) {
+                                              if (progress == null) return child;
+                                              return SizedBox(
+                                                height: 150,
+                                                child: Center(
+                                                  child: CircularProgressIndicator(
+                                                    value: progress.expectedTotalBytes != null
+                                                        ? progress.cumulativeBytesLoaded /
+                                                            progress.expectedTotalBytes!
+                                                        : null,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return SizedBox(
+                                                height: 150,
+                                                child: Center(
+                                                  child: Icon(Icons.image_not_supported),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
 
-                                    return Container(
-                                      height: 150,
-                                      width: 150,
-                                      alignment: Alignment.center,
-                                      child: const CircularProgressIndicator(strokeWidth: 2),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      height: 150,
-                                      width: 150,
-                                      alignment: Alignment.center,
-                                      child: const Icon(Icons.image_not_supported),
-                                    );
-                                  },
+                                      // Text message
+                                      if (data['text'] != null && data['text'].toString().isNotEmpty)
+                                        Text(data['text']),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            if (data['text'] != null)
-                              Text(data['text']),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                              const SizedBox(width: 8),
+                              if (isMe)
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: avatarColor,
+                                  child: Text(
+                                    initials,
+                                    style: const TextStyle(
+                                        color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                  }
                 );
               },
             ),
@@ -332,27 +394,30 @@ class _ChatScreenState extends State<ChatScreen> {
                   ],
                 ),
               ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.camera_alt),
-                    onPressed: pickImage,
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration: const InputDecoration(
-                        hintText: 'Send a message or proof...',
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 16), // left, top, right, bottom
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.camera_alt),
+                      onPressed: pickImage,
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        decoration: const InputDecoration(
+                          hintText: 'Send a message or proof...',
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: () {
-                      sendMessage(text: _controller.text);
-                    },
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.send),
+                      onPressed: () {
+                        sendMessage(text: _controller.text);
+                      },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
