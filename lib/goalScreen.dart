@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'challengeDetailsScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'chatScreen.dart';
 
 class GoalScreen extends StatefulWidget {
   const GoalScreen({super.key});
@@ -236,37 +237,38 @@ class _GoalScreenState extends State<GoalScreen> {
                     style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 12),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
                       ElevatedButton(
-                        onPressed: () async {
-                          await joinChallenge(challenge['id']);
-                          setState(() {});
+                        onPressed: () {
+                          // Navigate to proof upload
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                         ),
                         child: const Text(
-                          'Join',
+                          'Submit Proof',
                           style: TextStyle(color: Colors.white),
                         ),
                       ),
-                      const SizedBox(width: 12),
                       OutlinedButton(
                         onPressed: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ChallengeDetailsScreen(
-                                challenge: challenge,
+                              builder: (_) => ChatScreen(
+                                challengeId: challenge['id'],
+                                challengeTitle: challenge['title'],
                               ),
                             ),
                           );
                         },
-                        child: const Text('View'),
+                        child: const Text('Open Chat'),
                       ),
                     ],
-                  ),
+                  )
                 ],
               ),
             ),
