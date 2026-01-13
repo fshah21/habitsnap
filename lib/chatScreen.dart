@@ -8,11 +8,13 @@ import 'package:firebase_storage/firebase_storage.dart';
 class ChatScreen extends StatefulWidget {
   final String challengeId;
   final String challengeTitle;
+  final File? preloadedImage;
 
   const ChatScreen({
     super.key,
     required this.challengeId,
     required this.challengeTitle,
+    this.preloadedImage,
   });
 
   @override
@@ -31,6 +33,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     loadJoinedAt();
+    if (widget.preloadedImage != null) {
+      _selectedImage = widget.preloadedImage;
+    }
   }
 
   Color getColorForUser(String userId) {

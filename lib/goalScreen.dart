@@ -4,6 +4,9 @@ import 'challengeDetailsScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'chatScreen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 class GoalScreen extends StatefulWidget {
   const GoalScreen({super.key});
@@ -48,6 +51,36 @@ class _GoalScreenState extends State<GoalScreen> {
         };
       }).toList();
     });
+  }
+
+  Future<void> submitProof(Map<String, dynamic> challenge) async {
+    final picker = ImagePicker();
+    try {
+        final pickedFile = await picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 70,
+        );
+
+        if (pickedFile != null) {
+          final imageFile = File(pickedFile.path);
+          print('Image selected: ${pickedFile.path}');
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                challengeId: challenge['id'],
+                challengeTitle: challenge['title'],
+                preloadedImage: imageFile,
+              ),
+            ),
+          );
+        } else {
+          print('No image selected.');
+        }
+      } catch (e) {
+        print('Error picking image: $e');
+      }
   }
 
   Future<void> joinChallenge(String challengeId) async {
@@ -237,35 +270,38 @@ class _GoalScreenState extends State<GoalScreen> {
                     style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
+                  Row(
                     children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          // Navigate to proof upload
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                        ),
-                        child: const Text(
-                          'Submit Proof',
-                          style: TextStyle(color: Colors.white),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            submitProof(challenge);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                          ),
+                          child: const Text(
+                            'Submit Proof',
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ChatScreen(
-                                challengeId: challenge['id'],
-                                challengeTitle: challenge['title'],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  challengeId: challenge['id'],
+                                  challengeTitle: challenge['title'],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                        child: const Text('Open Chat'),
+                            );
+                          },
+                          child: const Text('Open Chat'),
+                        ),
                       ),
                     ],
                   )
