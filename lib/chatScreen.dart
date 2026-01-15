@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 
 class ChatScreen extends StatefulWidget {
   final String challengeId;
@@ -26,8 +29,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final uid = FirebaseAuth.instance.currentUser!.uid;
   final userEmail = FirebaseAuth.instance.currentUser!.email;
   File? _selectedImage;
+  bool _isUploading = false;
   int currentDay = 1;
+  int streak = 1;
   DateTime? joinedAt;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -36,6 +42,21 @@ class _ChatScreenState extends State<ChatScreen> {
     if (widget.preloadedImage != null) {
       _selectedImage = widget.preloadedImage;
     }
+  }
+
+  Future<File> compressImage(File file) async {
+    final dir = await getTemporaryDirectory();
+    final targetPath =
+        '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    final compressed = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
+      quality: 70,        // 👈 key control (60–75 ideal)
+      minWidth: 1080,     // 👈 limits resolution
+    );
+
+    return File(compressed!.path);
   }
 
   Color getColorForUser(String userId) {
@@ -62,14 +83,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> loadJoinedAt() async {
     final date = await getJoinedAt();
+    if (date == null) return;
     final dayNumber = calculateDayNumber(
-      joinedAt: joinedAt!,
+      joinedAt: date,
       totalDays: 30,
     );
-    setState(() {
-      joinedAt = date;
-      currentDay = dayNumber;
-    });
+    final userStreak = await getStreak();
+      setState(() {
+        joinedAt = date;
+        currentDay = dayNumber;
+        streak = userStreak;
+      });
   }
 
   int calculateDayNumber({
@@ -94,19 +118,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
       return day.clamp(1, totalDays);
     }
-
-
+  
   Future<DateTime?> getJoinedAt() async {
-    final docId = '${uid}_${widget.challengeId}';
-
-    final doc = await FirebaseFirestore.instance
-        .collection('userChallenges')
-        .doc(docId)
+    final challengeDoc = await FirebaseFirestore.instance
+        .collection('userchallenges') // top-level collection
+        .doc(uid)                     // user's document
+        .collection('challenges')     // subcollection
+        .doc(widget.challengeId)      // challenge document
         .get();
 
-    if (!doc.exists) return null;
+    if (!challengeDoc.exists) return null;
 
-    final data = doc.data()!;
+    final data = challengeDoc.data()!;
+    print('Challenge data: $data');
+
     return (data['joinedAt'] as Timestamp).toDate();
   }
 
@@ -117,8 +142,16 @@ class _ChatScreenState extends State<ChatScreen> {
     String? imageUrl;
 
     if (_selectedImage != null) {
+      setState(() => _isUploading = true);
       try {
         print('📤 Starting image upload...');
+
+        final compressedImage = await compressImage(_selectedImage!);
+
+        print(
+          '📉 Original: ${await _selectedImage!.length()} bytes | '
+          'Compressed: ${await compressedImage.length()} bytes'
+        );
 
         final ref = FirebaseStorage.instance
             .ref()
@@ -126,9 +159,8 @@ class _ChatScreenState extends State<ChatScreen> {
             .child(widget.challengeId)
             .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
 
-        print('📁 Storage path: ${ref.fullPath}');
-
-        final uploadTask = await ref.putFile(_selectedImage!);
+        print('📤 Uploading compressed image...');
+        final uploadTask = await ref.putFile(compressedImage);
 
         print('✅ Upload completed');
         print('📊 Bytes transferred: ${uploadTask.bytesTransferred}');
@@ -144,6 +176,8 @@ class _ChatScreenState extends State<ChatScreen> {
         print('❌ Unknown error during image upload');
         print(e);
         print(stackTrace);
+      } finally {
+        setState(() => _isUploading = false);
       }
     }
 
@@ -168,8 +202,44 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
         _selectedImage = null;
     });
+    loadJoinedAt();
  }
 
+  Future<int> getStreak() async {
+    // Simple logic: count consecutive days with messages uploaded
+    final messages = await FirebaseFirestore.instance
+        .collection('challenges')
+        .doc(widget.challengeId)
+        .collection('messages')
+        .where('userId', isEqualTo: uid)
+        .orderBy('createdAtLocal', descending: true)
+        .get();
+
+    int count = 0;
+    DateTime? lastDay;
+    print(messages.docs);
+    for (var doc in messages.docs) {
+      final data = doc.data();
+      print(data);
+      final createdAt = (data['createdAtLocal'] as Timestamp).toDate();
+      print(createdAt);
+      final day = DateTime(createdAt.year, createdAt.month, createdAt.day);
+      if (lastDay == null) {
+        lastDay = day;
+        count++;
+      } else {
+        if (lastDay.difference(day).inDays == 1) {
+          count++;
+          lastDay = day;
+        } else if (lastDay.difference(day).inDays == 0) {
+          lastDay = day;
+        } else {
+          break;
+        }
+      }
+    }
+    return count;
+  }
 
   Future<void> pickImage() async {
     final picker = ImagePicker();
@@ -243,7 +313,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _challengeProgressBox(
             day: currentDay,
             totalDays: 30,
-            streak: 1,
+            streak: streak,
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -260,7 +330,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 final messages = snapshot.data!.docs;
 
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_scrollController.hasClients) {
+                  _scrollController.animateTo(
+                    _scrollController.position.maxScrollExtent,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  );
+                }
+              });
+
                 return ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(12),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
@@ -305,33 +386,18 @@ class _ChatScreenState extends State<ChatScreen> {
                                       if (data['imageUrl'] != null)
                                         Padding(
                                           padding: const EdgeInsets.only(bottom: 6),
-                                          child: Image.network(
-                                            data['imageUrl'],
+                                          child: CachedNetworkImage(
+                                            imageUrl: data['imageUrl'],
                                             height: 150,
                                             fit: BoxFit.cover,
-                                            loadingBuilder: (context, child, progress) {
-                                              if (progress == null) return child;
-                                              return SizedBox(
-                                                height: 150,
-                                                child: Center(
-                                                  child: CircularProgressIndicator(
-                                                    value: progress.expectedTotalBytes != null
-                                                        ? progress.cumulativeBytesLoaded /
-                                                            progress.expectedTotalBytes!
-                                                        : null,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            errorBuilder: (context, error, stackTrace) {
-                                              return SizedBox(
-                                                height: 150,
-                                                child: Center(
-                                                  child: Icon(Icons.image_not_supported),
-                                                ),
-                                              );
-                                            },
-                                          ),
+                                            memCacheWidth: 400,
+                                            placeholder: (context, url) => SizedBox(
+                                              height: 150,
+                                              child: Center(child: CircularProgressIndicator()),
+                                            ),
+                                            errorWidget: (context, url, error) =>
+                                                const Icon(Icons.image_not_supported),
+                                          )
                                         ),
 
                                       // Text message
