@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'chatScreen.dart';
 
 class ChallengeDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> challenge;
@@ -99,6 +100,16 @@ class ChallengeDetailsScreen extends StatelessWidget {
                   onPressed: () async {
                     final challengeId = challenge['id'];
                     await joinChallenge(challengeId);
+                    if (!context.mounted) return;
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            challengeId: challengeId,
+                            challengeTitle: challenge['title'],
+                          ),
+                        ),
+                      );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,

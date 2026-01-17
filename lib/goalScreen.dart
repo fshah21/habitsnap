@@ -93,12 +93,29 @@ class _GoalScreenState extends State<GoalScreen> {
         .collection('challenges')
         .doc(challengeId);
 
-    await userChallengeRef.set({
+    final challengeRef = FirebaseFirestore.instance
+      .collection('challenges')
+      .doc(challengeId);
+
+    // 🔒 Optional: prevent double join
+    final existing = await userChallengeRef.get();
+    if (existing.exists) return;
+
+    // ✅ Batch write = atomic
+    final batch = FirebaseFirestore.instance.batch();
+
+    batch.set(userChallengeRef, {
       'joinedAt': FieldValue.serverTimestamp(),
       'status': 'active',
     });
 
-    print('User joined challenge');
+    batch.update(challengeRef, {
+      'participants': FieldValue.increment(1),
+    });
+
+    await batch.commit();
+
+    print('User joined challenge + participant incremented');
   }
 
   Stream<List<Map<String, dynamic>>> joinedChallengesStream() {
@@ -169,7 +186,11 @@ class _GoalScreenState extends State<GoalScreen> {
       body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.explore),
@@ -222,7 +243,7 @@ class _GoalScreenState extends State<GoalScreen> {
               itemCount: discoverChallenges.length,
               separatorBuilder: (_, __) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
-                return _buildChallengeCard(discoverChallenges[index], isDiscover: true);
+                return _buildChallengeCard(discoverChallenges[index], true);
               },
             );
           },
@@ -231,8 +252,7 @@ class _GoalScreenState extends State<GoalScreen> {
     );
   }
 
-  Widget _buildChallengeCard(Map<String, dynamic> challenge,
-    {bool isDiscover = true}) {
+  Widget _buildChallengeCard(Map<String, dynamic> challenge, bool isDiscover) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -295,6 +315,16 @@ class _GoalScreenState extends State<GoalScreen> {
                             content: Text('Challenge joined!'),
                           ),
                         );
+                        if (!context.mounted) return;
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                challengeId: challenge['id'],
+                                challengeTitle: challenge['title'],
+                              ),
+                            ),
+                          );
                       } else {
                         // Submit proof
                         submitProof(challenge);
@@ -368,7 +398,7 @@ class _GoalScreenState extends State<GoalScreen> {
           itemCount: challenges.length,
           separatorBuilder: (_, __) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
-            return _buildChallengeCard(challenges[index]);
+            return _buildChallengeCard(challenges[index], false);
           },
         );
       },
