@@ -151,7 +151,7 @@ class _GoalScreenState extends State<GoalScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HabitBuddy'),
+        title: const Text('Habit Snap'),
         backgroundColor: Colors.yellow[700],
         actions: [
           IconButton(
@@ -222,7 +222,7 @@ class _GoalScreenState extends State<GoalScreen> {
               itemCount: discoverChallenges.length,
               separatorBuilder: (_, __) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
-                return _buildChallengeCard(discoverChallenges[index]);
+                return _buildChallengeCard(discoverChallenges[index], isDiscover: true);
               },
             );
           },
@@ -231,8 +231,8 @@ class _GoalScreenState extends State<GoalScreen> {
     );
   }
 
-  /// 🧩 CHALLENGE CARD (clean separation)
-  Widget _buildChallengeCard(Map<String, dynamic> challenge) {
+  Widget _buildChallengeCard(Map<String, dynamic> challenge,
+    {bool isDiscover = true}) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -281,20 +281,31 @@ class _GoalScreenState extends State<GoalScreen> {
 
             const SizedBox(height: 16),
 
-            // 🔹 Bottom row: Buttons (full width)
+            // 🔹 Bottom row: Buttons
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      submitProof(challenge);
+                    onPressed: () async {
+                      if (isDiscover) {
+                        // Join challenge
+                        await joinChallenge(challenge['id']);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Challenge joined!'),
+                          ),
+                        );
+                      } else {
+                        // Submit proof
+                        submitProof(challenge);
+                      }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: isDiscover ? Colors.blue : Colors.green,
                     ),
-                    child: const Text(
-                      'Submit Proof',
-                      style: TextStyle(color: Colors.white),
+                    child: Text(
+                      isDiscover ? 'Join Challenge' : 'Submit Proof',
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
@@ -302,17 +313,30 @@ class _GoalScreenState extends State<GoalScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            challengeId: challenge['id'],
-                            challengeTitle: challenge['title'],
+                      if (isDiscover) {
+                        // Go to Challenge Details
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChallengeDetailsScreen(
+                              challenge: challenge,
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } else {
+                        // Go to Chat
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(
+                              challengeId: challenge['id'],
+                              challengeTitle: challenge['title'],
+                            ),
+                          ),
+                        );
+                      }
                     },
-                    child: const Text('Open Chat'),
+                    child: Text(isDiscover ? 'View Details' : 'Open Chat'),
                   ),
                 ),
               ],

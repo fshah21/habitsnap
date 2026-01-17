@@ -91,20 +91,23 @@ class ChallengeDetailsScreen extends StatelessWidget {
             const Spacer(),
 
             /// Join button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final challengeId = challenge['id'];
-                  await joinChallenge(challengeId);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: const Text(
-                  'Join Challenge',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24), // adjust as needed
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final challengeId = challenge['id'];
+                    await joinChallenge(challengeId);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'Join Challenge',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
                 ),
               ),
             ),
