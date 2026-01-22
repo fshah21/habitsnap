@@ -46,6 +46,7 @@ dependencies:
   flutter_launcher_icons: ^0.14.4
   flutter_image_compress: ^2.4.0
   path_provider: ^2.1.5
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:

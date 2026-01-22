@@ -101,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    fixedSize: const Size(400, 50),
+                    fixedSize: const Size(300, 50),
                   ),
                   onPressed: () async {
                     final userCredential = await signInWithGoogle();

@@ -47,15 +47,13 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.purple.shade100,
+      backgroundColor: const Color(0xFFFFFC00),
       body: Center(
-        child: Text(
-          'Habit Buddy',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.purple.shade900,
-          ),
+        child: Image.asset(
+          'assets/habitsnap.png',
+          width: 120,
+          height: 120,
+          fit: BoxFit.contain,
         ),
       ),
     );

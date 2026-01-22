@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:intl/intl.dart';
 
 class ChatScreen extends StatefulWidget {
   final String challengeId;
@@ -118,6 +119,26 @@ class _ChatScreenState extends State<ChatScreen> {
 
       return day.clamp(1, totalDays);
     }
+
+  String formatChatDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDay = DateTime(date.year, date.month, date.day);
+
+    final difference = today.difference(messageDay).inDays;
+
+    if (difference == 0) {
+      return 'Today';
+    } else if (difference == 1) {
+      return 'Yesterday';
+    } else if (difference < 7) {
+      // Wednesday, Monday, etc.
+      return DateFormat('EEEE').format(messageDay);
+    } else {
+      // Jan 1, 2026
+      return DateFormat('MMM d, yyyy').format(messageDay);
+    }
+  }
   
   Future<DateTime?> getJoinedAt() async {
     final challengeDoc = await FirebaseFirestore.instance
@@ -296,6 +317,29 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _dateSeparator(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -331,33 +375,55 @@ class _ChatScreenState extends State<ChatScreen> {
                 final messages = snapshot.data!.docs;
 
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (_scrollController.hasClients) {
-                  _scrollController.animateTo(
-                    _scrollController.position.maxScrollExtent,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                  );
-                }
-              });
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                });
 
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(12),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final data =
-                        messages[index].data() as Map<String, dynamic>;
+                    final data = messages[index].data() as Map<String, dynamic>;
+
+                    final currentTime =
+                        (data['createdAtLocal'] as Timestamp).toDate();
+
+                    DateTime? previousTime;
+                    if (index > 0) {
+                      final prevData =
+                          messages[index - 1].data() as Map<String, dynamic>;
+                      previousTime =
+                          (prevData['createdAtLocal'] as Timestamp).toDate();
+                    }
+
+                    final isNewDay = previousTime == null ||
+                        currentTime.year != previousTime.year ||
+                        currentTime.month != previousTime.month ||
+                        currentTime.day != previousTime.day;
+
                     final isMe = data['userId'] == uid;
                     final email = data['userEmail'] ?? 'user@example.com';
-                    print(email);
                     final initials = getInitialsFromEmail(email);
                     final avatarColor = getColorForUser(data['userId']);
 
-                     return Align(
-                          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                    return Column(
+                      children: [
+                        if (isNewDay) _dateSeparator(formatChatDate(currentTime)),
+
+                        Align(
+                          alignment: isMe
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
                           child: Row(
-                            mainAxisAlignment:
-                                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            mainAxisAlignment: isMe
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (!isMe)
@@ -367,47 +433,46 @@ class _ChatScreenState extends State<ChatScreen> {
                                   child: Text(
                                     initials,
                                     style: const TextStyle(
-                                        color: Colors.white, fontWeight: FontWeight.bold),
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               const SizedBox(width: 8),
+
                               Flexible(
                                 child: Container(
                                   margin: const EdgeInsets.symmetric(vertical: 6),
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: isMe ? Colors.green[200] : Colors.grey[300],
+                                    color: isMe
+                                        ? Colors.green[200]
+                                        : Colors.grey[300],
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      // Image proof
                                       if (data['imageUrl'] != null)
                                         Padding(
-                                          padding: const EdgeInsets.only(bottom: 6),
+                                          padding:
+                                              const EdgeInsets.only(bottom: 6),
                                           child: CachedNetworkImage(
                                             imageUrl: data['imageUrl'],
                                             height: 150,
                                             fit: BoxFit.cover,
-                                            memCacheWidth: 400,
-                                            placeholder: (context, url) => SizedBox(
-                                              height: 150,
-                                              child: Center(child: CircularProgressIndicator()),
-                                            ),
-                                            errorWidget: (context, url, error) =>
-                                                const Icon(Icons.image_not_supported),
-                                          )
+                                          ),
                                         ),
-
-                                      // Text message
-                                      if (data['text'] != null && data['text'].toString().isNotEmpty)
+                                      if (data['text'] != null &&
+                                          data['text'].toString().isNotEmpty)
                                         Text(data['text']),
                                     ],
                                   ),
                                 ),
                               ),
+
                               const SizedBox(width: 8),
+
                               if (isMe)
                                 CircleAvatar(
                                   radius: 20,
@@ -415,17 +480,22 @@ class _ChatScreenState extends State<ChatScreen> {
                                   child: Text(
                                     initials,
                                     style: const TextStyle(
-                                        color: Colors.white, fontWeight: FontWeight.bold),
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                             ],
                           ),
-                        );
-                  }
+                        ),
+                      ],
+                    );
+                  }, // <-- comma here, not }; 
                 );
               },
             ),
           ),
+
 
           // Input + Image Preview
           Column(

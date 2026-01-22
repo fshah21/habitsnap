@@ -15,7 +15,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<String> texts = [
     'Build habits with real people\nNot reminders',
     'Show proof. Stay accountable.\nEvery single day.',
-    'One habit.\nOne buddy.\nNo excuses.',
+    'Find people building same habits.\nTransform yourself today!',
   ];
 
   void _next() {
