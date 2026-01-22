@@ -51,8 +51,8 @@ class _SplashScreenState extends State<SplashScreen> {
       body: Center(
         child: Image.asset(
           'assets/habitsnap.png',
-          width: 120,
-          height: 120,
+          width: 300,
+          height: 300,
           fit: BoxFit.contain,
         ),
       ),

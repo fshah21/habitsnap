@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'goalScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -66,6 +68,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
             print('Signed in as ${userCredential.user?.displayName}');
 
+            // Check if user exists in Firestore
+            final userDoc = FirebaseFirestore.instance.collection('users').doc(userId);
+            final docSnapshot = await userDoc.get();
+
+            if (!docSnapshot.exists) {
+              // Generate random username
+              final randomUsername = _generateRandomUsername();
+
+              await userDoc.set({
+                'username': randomUsername,
+                'displayName': userCredential.user?.displayName ?? '',
+                'email': userCredential.user?.email ?? '',
+                'photoUrl': userCredential.user?.photoURL ?? '',
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+
+              print('New user created with username: $randomUsername');
+            }
+
             // Navigate to GoalScreen
             if (!mounted) return null;
             Navigator.pushReplacement(
@@ -83,15 +104,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Random username generator
+  String _generateRandomUsername() {
+    const adjectives = ['Happy', 'Swift', 'Clever', 'Brave', 'Quiet', 'Lucky'];
+    const nouns = ['Tiger', 'Falcon', 'Lion', 'Fox', 'Bear', 'Wolf'];
+    final rand = Random();
+    final adjective = adjectives[rand.nextInt(adjectives.length)];
+    final noun = nouns[rand.nextInt(nouns.length)];
+    final number = rand.nextInt(999);
+    return '$adjective$noun$number';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.yellow,
+      backgroundColor: const Color(0xFFFFFC00),
       body: Column(
         children: [
           Expanded(
             flex: 7,
-            child: Center(child: Container()),
+            child: Center(
+              child: Image.asset(
+                'assets/habitsnap.png',
+                width: 300,
+                height: 300,
+              ),
+            ),
           ),
           Expanded(
             flex: 3,
@@ -106,9 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () async {
                     final userCredential = await signInWithGoogle();
                     if (userCredential != null) {
-                      // Successfully signed in
                       print('Signed in as ${userCredential.user?.displayName}');
-                      // Navigate to next screen, e.g., OnboardingScreen
                     }
                   },
                   child: const Text(
