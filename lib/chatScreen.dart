@@ -36,10 +36,18 @@ class _ChatScreenState extends State<ChatScreen> {
   int streak = 1;
   DateTime? joinedAt;
   final ScrollController _scrollController = ScrollController();
+  late final Stream<QuerySnapshot> _proofsStream;
 
   @override
   void initState() {
     super.initState();
+    _proofsStream = FirebaseFirestore.instance
+      .collection('challenges')
+      .doc(widget.challengeId)
+      .collection('messages')
+      .where('imageUrl', isNull: false)
+      .orderBy('createdAtLocal', descending: true)
+      .snapshots();
     loadJoinedAt();
     if (widget.preloadedImage != null) {
       _selectedImage = widget.preloadedImage;
@@ -341,6 +349,280 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildChatInput() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_selectedImage != null && !_isUploading)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 200,
+              top: 6,
+              right: 10,
+              bottom: 6,
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 120,
+                      maxHeight: 200,
+                    ),
+                    child: Image.file(
+                      _selectedImage!,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    setState(() {
+                      _selectedImage = null;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.camera_alt),
+                onPressed: pickImage,
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(
+                    hintText: 'Send a message or proof...',
+                  ),
+                ),
+              ),
+              _isUploading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.send),
+                      onPressed: () {
+                        sendMessage(text: _controller.text);
+                      },
+                    ),
+            ],
+          ),
+        ),
+      ],
+    );  
+  }
+
+  Widget _buildChatTab() {
+    return Column(
+      children: [
+        /// 🔹 CHAT LIST
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('challenges')
+                .doc(widget.challengeId)
+                .collection('messages')
+                .orderBy('createdAtLocal')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final messages = snapshot.data!.docs;
+
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_scrollController.hasClients) {
+                  _scrollController.animateTo(
+                    _scrollController.position.maxScrollExtent,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  );
+                }
+              });
+
+              return ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(12),
+                itemCount: messages.length,
+                itemBuilder: (context, index) {
+                  final data =
+                      messages[index].data() as Map<String, dynamic>;
+
+                  final currentTime =
+                      (data['createdAtLocal'] as Timestamp).toDate();
+
+                  final isMe = data['userId'] == uid;
+                  final avatarColor =
+                      getColorForUser(data['userId']);
+                  final userId = data['userId'];
+
+                  String username =
+                      _usernamesCache[userId] ?? 'User';
+
+                  if (!_usernamesCache.containsKey(userId)) {
+                    FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(userId)
+                        .get()
+                        .then((doc) {
+                      if (doc.exists) {
+                        setState(() {
+                          _usernamesCache[userId] =
+                              doc['username'] ?? 'User';
+                        });
+                      }
+                    });
+                  }
+
+                  return Column(
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: isMe
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
+                        children: [
+                          Text(
+                            username,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 6),
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: avatarColor,
+                            child: Text(
+                              username[0].toUpperCase(),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Container(
+                        margin: EdgeInsets.only(
+                          left: isMe ? 0 : 22,
+                          right: isMe ? 22 : 0,
+                        ),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isMe
+                              ? Colors.green[200]
+                              : Colors.grey[300],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            if (data['imageUrl'] != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(bottom: 6),
+                                child: CachedNetworkImage(
+                                  imageUrl: data['imageUrl'],
+                                  height: 160,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            if (data['text'] != null &&
+                                data['text']
+                                    .toString()
+                                    .isNotEmpty)
+                              Text(data['text']),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+
+        /// 🔹 INPUT BAR (fixed at bottom)
+        _buildChatInput(),
+      ],
+    );
+  }
+
+  Widget _buildProofTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _proofsStream,
+      builder: (context, snapshot) {
+        print("Again in builder");
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        print(snapshot);
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(
+            child: Text(
+              'No proofs yet 📸\nBe the first to upload!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
+
+        final proofs = snapshot.data!.docs;
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(8),
+          gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 6,
+          ),
+          itemCount: proofs.length,
+          itemBuilder: (context, index) {      
+            final data =
+                proofs[index].data() as Map<String, dynamic>;
+              
+            final imageUrl = data['imageUrl'] as String?;
+            if (imageUrl == null || imageUrl.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: CachedNetworkImage(
+                imageUrl: data['imageUrl'],
+                fit: BoxFit.cover,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -360,232 +642,190 @@ class _ChatScreenState extends State<ChatScreen> {
             totalDays: 30,
             streak: streak,
           ),
+          // Expanded(
+          //   // child: StreamBuilder<QuerySnapshot>(
+          //   //   stream: FirebaseFirestore.instance
+          //   //       .collection('challenges')
+          //   //       .doc(widget.challengeId)
+          //   //       .collection('messages')
+          //   //       .orderBy('createdAtLocal')
+          //   //       .snapshots(),
+          //   //   builder: (context, snapshot) {
+          //   //     if (!snapshot.hasData) {
+          //   //       return const Center(child: CircularProgressIndicator());
+          //   //     }
+
+          //   //     final messages = snapshot.data!.docs;
+
+          //   //     WidgetsBinding.instance.addPostFrameCallback((_) {
+          //   //       if (_scrollController.hasClients) {
+          //   //         _scrollController.animateTo(
+          //   //           _scrollController.position.maxScrollExtent,
+          //   //           duration: const Duration(milliseconds: 300),
+          //   //           curve: Curves.easeOut,
+          //   //         );
+          //   //       }
+          //   //     });
+
+          //   //     return ListView.builder(
+          //   //       controller: _scrollController,
+          //   //       padding: const EdgeInsets.all(12),
+          //   //       itemCount: messages.length,
+          //   //       itemBuilder: (context, index) {
+          //   //         final data = messages[index].data() as Map<String, dynamic>;
+
+          //   //         final currentTime = (data['createdAtLocal'] as Timestamp).toDate();
+
+          //   //         DateTime? previousTime;
+          //   //         if (index > 0) {
+          //   //           final prevData = messages[index - 1].data() as Map<String, dynamic>;
+          //   //           previousTime = (prevData['createdAtLocal'] as Timestamp).toDate();
+          //   //         }
+
+          //   //         final isNewDay = previousTime == null ||
+          //   //             currentTime.year != previousTime.year ||
+          //   //             currentTime.month != previousTime.month ||
+          //   //             currentTime.day != previousTime.day;
+
+          //   //         final isMe = data['userId'] == uid;
+          //   //         final avatarColor = getColorForUser(data['userId']);
+          //   //         final userId = data['userId'];
+
+          //   //                             // Check cache first
+          //   //         String username = _usernamesCache[userId] ?? 'User';
+
+          //   //         // If not cached, fetch from Firestore
+          //   //         if (!_usernamesCache.containsKey(userId)) {
+          //   //           FirebaseFirestore.instance
+          //   //               .collection('users')
+          //   //               .doc(userId)
+          //   //               .get()
+          //   //               .then((doc) {
+          //   //             if (doc.exists) {
+          //   //               setState(() {
+          //   //                 _usernamesCache[userId] = doc['username'] ?? 'User';
+          //   //               });
+          //   //             }
+          //   //           });
+          //   //         }
+
+          //   //         return Column(
+          //   //           crossAxisAlignment:
+          //   //               isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          //   //           children: [
+          //   //             if (isNewDay) _dateSeparator(formatChatDate(currentTime)),
+          //   //             const SizedBox(height: 6),
+
+          //   //             // HEADER: avatar + username
+          //   //             Row(
+          //   //               crossAxisAlignment: CrossAxisAlignment.center,
+          //   //               mainAxisAlignment:
+          //   //                   isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          //   //               children: [
+          //   //                 Text(
+          //   //                   username,
+          //   //                   style: const TextStyle(
+          //   //                     fontSize: 12,
+          //   //                     fontWeight: FontWeight.bold,
+          //   //                   ),
+          //   //                 ),
+          //   //                 const SizedBox(width: 6),
+          //   //                 CircleAvatar(
+          //   //                     radius: 16,
+          //   //                     backgroundColor: avatarColor,
+          //   //                     child: Text(
+          //   //                       username[0].toUpperCase(),
+          //   //                       style: const TextStyle(
+          //   //                         color: Colors.white,
+          //   //                         fontWeight: FontWeight.bold,
+          //   //                       ),
+          //   //                     ),
+          //   //                   ),
+          //   //               ],
+          //   //             ),
+
+          //   //             const SizedBox(height: 4),
+
+          //   //             // MESSAGE BUBBLE
+          //   //             Container(
+          //   //               margin: EdgeInsets.only(
+          //   //                 left: isMe ? 0 : 22,
+          //   //                 right: isMe ? 22 : 0,
+          //   //               ),
+          //   //               padding: const EdgeInsets.all(10),
+          //   //               decoration: BoxDecoration(
+          //   //                 color: isMe ? Colors.green[200] : Colors.grey[300],
+          //   //                 borderRadius: BorderRadius.circular(12),
+          //   //               ),
+          //   //               child: Column(
+          //   //                 crossAxisAlignment: CrossAxisAlignment.start,
+          //   //                 children: [
+          //   //                   if (data['imageUrl'] != null)
+          //   //                     Padding(
+          //   //                       padding: const EdgeInsets.only(bottom: 6),
+          //   //                       child: CachedNetworkImage(
+          //   //                         imageUrl: data['imageUrl'],
+          //   //                         height: 160,
+          //   //                         fit: BoxFit.cover,
+          //   //                       ),
+          //   //                     ),
+          //   //                   if (data['text'] != null &&
+          //   //                       data['text'].toString().isNotEmpty)
+          //   //                     Text(data['text']),
+          //   //                 ],
+          //   //               ),
+          //   //             ),
+
+          //   //             const SizedBox(height: 2),
+
+          //   //             // TIMESTAMP
+          //   //             Padding(
+          //   //               padding: EdgeInsets.only(
+          //   //                 left: isMe ? 0 : 22,
+          //   //                 right: isMe ? 22 : 0,
+          //   //               ),
+          //   //               child: Text(
+          //   //                 '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
+          //   //                 style: const TextStyle(
+          //   //                   fontSize: 10,
+          //   //                   color: Colors.grey,
+          //   //                 ),
+          //   //               ),
+          //   //             ),
+
+          //   //             const SizedBox(height: 10),
+          //   //           ],
+          //   //         );
+          //   //       },
+          //   //     );
+          //   //   },
+          //   // ),
+            
+          // ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('challenges')
-                  .doc(widget.challengeId)
-                  .collection('messages')
-                  .orderBy('createdAtLocal')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final messages = snapshot.data!.docs;
-
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      _scrollController.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  }
-                });
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final data = messages[index].data() as Map<String, dynamic>;
-
-                    final currentTime = (data['createdAtLocal'] as Timestamp).toDate();
-
-                    DateTime? previousTime;
-                    if (index > 0) {
-                      final prevData = messages[index - 1].data() as Map<String, dynamic>;
-                      previousTime = (prevData['createdAtLocal'] as Timestamp).toDate();
-                    }
-
-                    final isNewDay = previousTime == null ||
-                        currentTime.year != previousTime.year ||
-                        currentTime.month != previousTime.month ||
-                        currentTime.day != previousTime.day;
-
-                    final isMe = data['userId'] == uid;
-                    final avatarColor = getColorForUser(data['userId']);
-                    final userId = data['userId'];
-
-                                        // Check cache first
-                    String username = _usernamesCache[userId] ?? 'User';
-
-                    // If not cached, fetch from Firestore
-                    if (!_usernamesCache.containsKey(userId)) {
-                      FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(userId)
-                          .get()
-                          .then((doc) {
-                        if (doc.exists) {
-                          setState(() {
-                            _usernamesCache[userId] = doc['username'] ?? 'User';
-                          });
-                        }
-                      });
-                    }
-
-                    return Column(
-                      crossAxisAlignment:
-                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            child: DefaultTabController(
+              length: 2,
+              child: Column(
+                children: [
+                  const TabBar(
+                    tabs: [
+                      Tab(text: 'Chat'),
+                      Tab(text: 'Proofs'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
                       children: [
-                        if (isNewDay) _dateSeparator(formatChatDate(currentTime)),
-                        const SizedBox(height: 6),
-
-                        // HEADER: avatar + username
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment:
-                              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              username,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            CircleAvatar(
-                                radius: 16,
-                                backgroundColor: avatarColor,
-                                child: Text(
-                                  username[0].toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        // MESSAGE BUBBLE
-                        Container(
-                          margin: EdgeInsets.only(
-                            left: isMe ? 0 : 22,
-                            right: isMe ? 22 : 0,
-                          ),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: isMe ? Colors.green[200] : Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (data['imageUrl'] != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: CachedNetworkImage(
-                                    imageUrl: data['imageUrl'],
-                                    height: 160,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              if (data['text'] != null &&
-                                  data['text'].toString().isNotEmpty)
-                                Text(data['text']),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 2),
-
-                        // TIMESTAMP
-                        Padding(
-                          padding: EdgeInsets.only(
-                            left: isMe ? 0 : 22,
-                            right: isMe ? 22 : 0,
-                          ),
-                          child: Text(
-                            '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
+                        _buildChatTab(),
+                        _buildProofTab(),
                       ],
-                    );
-                  },
-                );
-              },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-
-
-          // Input + Image Preview
-          Column(
-            children: [
-              if (_selectedImage != null)
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: 200,
-                  top: 6,
-                  right: 10,
-                  bottom: 6,
-                ),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: 120,
-                          maxHeight: 200, // good for portrait photos
-                        ),
-                        child: Image.file(
-                          _selectedImage!,
-                          fit: BoxFit.contain, // PRESERVES RATIO
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        setState(() {
-                          _selectedImage = null;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 16), // left, top, right, bottom
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.camera_alt),
-                      onPressed: pickImage,
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        decoration: const InputDecoration(
-                          hintText: 'Send a message or proof...',
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.send),
-                      onPressed: () {
-                        sendMessage(text: _controller.text);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          
         ],
       ),
     );
