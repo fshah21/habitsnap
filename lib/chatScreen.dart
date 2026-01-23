@@ -27,6 +27,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
+  Map<String, String> _usernamesCache = {};
   final uid = FirebaseAuth.instance.currentUser!.uid;
   final userEmail = FirebaseAuth.instance.currentUser!.email;
   File? _selectedImage;
@@ -391,15 +392,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemBuilder: (context, index) {
                     final data = messages[index].data() as Map<String, dynamic>;
 
-                    final currentTime =
-                        (data['createdAtLocal'] as Timestamp).toDate();
+                    final currentTime = (data['createdAtLocal'] as Timestamp).toDate();
 
                     DateTime? previousTime;
                     if (index > 0) {
-                      final prevData =
-                          messages[index - 1].data() as Map<String, dynamic>;
-                      previousTime =
-                          (prevData['createdAtLocal'] as Timestamp).toDate();
+                      final prevData = messages[index - 1].data() as Map<String, dynamic>;
+                      previousTime = (prevData['createdAtLocal'] as Timestamp).toDate();
                     }
 
                     final isNewDay = previousTime == null ||
@@ -408,89 +406,115 @@ class _ChatScreenState extends State<ChatScreen> {
                         currentTime.day != previousTime.day;
 
                     final isMe = data['userId'] == uid;
-                    final email = data['userEmail'] ?? 'user@example.com';
-                    final initials = getInitialsFromEmail(email);
                     final avatarColor = getColorForUser(data['userId']);
+                    final userId = data['userId'];
+
+                                        // Check cache first
+                    String username = _usernamesCache[userId] ?? 'User';
+
+                    // If not cached, fetch from Firestore
+                    if (!_usernamesCache.containsKey(userId)) {
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .get()
+                          .then((doc) {
+                        if (doc.exists) {
+                          setState(() {
+                            _usernamesCache[userId] = doc['username'] ?? 'User';
+                          });
+                        }
+                      });
+                    }
 
                     return Column(
+                      crossAxisAlignment:
+                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                       children: [
                         if (isNewDay) _dateSeparator(formatChatDate(currentTime)),
+                        const SizedBox(height: 6),
 
-                        Align(
-                          alignment: isMe
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Row(
-                            mainAxisAlignment: isMe
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (!isMe)
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: avatarColor,
-                                  child: Text(
-                                    initials,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(width: 8),
-
-                              Flexible(
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(vertical: 6),
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: isMe
-                                        ? Colors.green[200]
-                                        : Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (data['imageUrl'] != null)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 6),
-                                          child: CachedNetworkImage(
-                                            imageUrl: data['imageUrl'],
-                                            height: 150,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      if (data['text'] != null &&
-                                          data['text'].toString().isNotEmpty)
-                                        Text(data['text']),
-                                    ],
+                        // HEADER: avatar + username
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment:
+                              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                          children: [
+                            Text(
+                              username,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            CircleAvatar(
+                                radius: 16,
+                                backgroundColor: avatarColor,
+                                child: Text(
+                                  username[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
+                          ],
+                        ),
 
-                              const SizedBox(width: 8),
+                        const SizedBox(height: 4),
 
-                              if (isMe)
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: avatarColor,
-                                  child: Text(
-                                    initials,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                        // MESSAGE BUBBLE
+                        Container(
+                          margin: EdgeInsets.only(
+                            left: isMe ? 0 : 22,
+                            right: isMe ? 22 : 0,
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isMe ? Colors.green[200] : Colors.grey[300],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (data['imageUrl'] != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: CachedNetworkImage(
+                                    imageUrl: data['imageUrl'],
+                                    height: 160,
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
+                              if (data['text'] != null &&
+                                  data['text'].toString().isNotEmpty)
+                                Text(data['text']),
                             ],
                           ),
                         ),
+
+                        const SizedBox(height: 2),
+
+                        // TIMESTAMP
+                        Padding(
+                          padding: EdgeInsets.only(
+                            left: isMe ? 0 : 22,
+                            right: isMe ? 22 : 0,
+                          ),
+                          child: Text(
+                            '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
                       ],
                     );
-                  }, // <-- comma here, not }; 
+                  },
                 );
               },
             ),
