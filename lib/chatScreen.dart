@@ -507,6 +507,19 @@ class _ChatScreenState extends State<ChatScreen> {
                   final currentTime =
                       (data['createdAtLocal'] as Timestamp).toDate();
 
+                  DateTime? previousTime;
+                  if (index > 0) {
+                    final prevData =
+                        messages[index - 1].data() as Map<String, dynamic>;
+                    previousTime =
+                        (prevData['createdAtLocal'] as Timestamp).toDate();
+                  }
+
+                  final isNewDay = previousTime == null ||
+                      currentTime.year != previousTime.year ||
+                      currentTime.month != previousTime.month ||
+                      currentTime.day != previousTime.day;
+
                   final isMe = data['userId'] == uid;
                   final avatarColor =
                       getColorForUser(data['userId']);
@@ -535,6 +548,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         ? CrossAxisAlignment.end
                         : CrossAxisAlignment.start,
                     children: [
+                      if (isNewDay)
+                        _dateSeparator(formatChatDate(currentTime)),
                       Row(
                         mainAxisAlignment: isMe
                             ? MainAxisAlignment.end
@@ -604,6 +619,23 @@ class _ChatScreenState extends State<ChatScreen> {
                                     .isNotEmpty)
                               Text(data['text']),
                           ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 2),
+
+                      // TIMESTAMP
+                      Padding(
+                        padding: EdgeInsets.only(
+                          left: isMe ? 0 : 22,
+                          right: isMe ? 22 : 0,
+                        ),
+                        child: Text(
+                          '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
 
