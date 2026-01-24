@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'profileScreen.dart';
+import 'services/challengeService.dart';
+import 'utils/challengeUtils.dart';
 
 class GoalScreen extends StatefulWidget {
   const GoalScreen({super.key});
@@ -132,32 +134,46 @@ class _GoalScreenState extends State<GoalScreen> {
         .collection('challenges');
 
     return userChallengesRef.snapshots().asyncMap((snapshot) async {
-      if (snapshot.docs.isEmpty) return [];
+    if (snapshot.docs.isEmpty) return [];
 
-      final challengeIds = snapshot.docs.map((d) => d.id).toList();
+    /// 1️⃣ Build a map: challengeId -> userChallengeData
+    final Map<String, Map<String, dynamic>> userChallengeMap = {
+      for (var doc in snapshot.docs)
+        doc.id: doc.data(), // contains joinedAt, status, etc.
+    };
 
-      // Firestore whereIn limit safety
-      if (challengeIds.length > 10) {
-        challengeIds.length = 10;
-      }
+    final challengeIds = userChallengeMap.keys.toList();
 
-      final challengesSnapshot = await FirebaseFirestore.instance
-          .collection('challenges')
-          .where(FieldPath.documentId, whereIn: challengeIds)
-          .get();
+    // Firestore whereIn safety (MVP workaround)
+    if (challengeIds.length > 10) {
+      challengeIds.length = 10;
+    }
 
-      return challengesSnapshot.docs.map((doc) {
-        return {
-          'id': doc.id,
-          'title': doc['title'],
-          'description': doc['description'],
-          'rules': doc['rules'],
-          'participants': doc['participants'],
-          'duration': doc['duration'],
-        };
-      }).toList();
-    });
-  }
+    /// 2️⃣ Fetch challenges
+    final challengesSnapshot = await FirebaseFirestore.instance
+        .collection('challenges')
+        .where(FieldPath.documentId, whereIn: challengeIds)
+        .get();
+
+    /// 3️⃣ Merge challenge + userChallenge data
+    return challengesSnapshot.docs.map((doc) {
+      final userData = userChallengeMap[doc.id];
+
+      return {
+        'id': doc.id,
+        'title': doc['title'],
+        'description': doc['description'],
+        'rules': doc['rules'],
+        'participants': doc['participants'],
+        'duration': doc['duration'],
+
+        // 👇 USER-SPECIFIC
+        'joinedAt': userData?['joinedAt'],
+        'status': userData?['status'], // optional, future-proof
+      };
+    }).toList();
+  });
+}
 
 
   @override
@@ -258,7 +274,64 @@ class _GoalScreenState extends State<GoalScreen> {
     );
   }
 
+  Widget _buildDayStreakRow(Map<String, dynamic> challenge) {
+    print("Build day streak row");
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    return FutureBuilder<int>(
+      future: ChallengeService.getStreak(
+        challengeId: challenge['id'],
+        uid: uid ?? '',
+      ),
+      builder: (context, snapshot) {
+        final streak = snapshot.data ?? 0;
+
+        final dayNumber = calculateDayNumber(
+          joinedAt: (challenge['joinedAt'] as Timestamp).toDate(),
+          totalDays: challenge['duration'],
+        );
+
+        return Row(
+          children: [
+            _statChip(
+              icon: Icons.calendar_today,
+              label: 'Day $dayNumber',
+            ),
+            const SizedBox(width: 10),
+            _statChip(
+              icon: Icons.local_fire_department,
+              label: '$streak streak',
+              iconColor: Colors.orange,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _statChip({
+    required IconData icon,
+    required String label,
+    Color iconColor = Colors.black,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: iconColor),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildChallengeCard(Map<String, dynamic> challenge, bool isDiscover) {
+    print("Challenge $challenge");
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -304,6 +377,11 @@ class _GoalScreenState extends State<GoalScreen> {
                 ),
               ],
             ),
+
+            const SizedBox(height: 12),
+
+            if (!isDiscover && challenge['joinedAt'] != null)
+              _buildDayStreakRow(challenge),
 
             const SizedBox(height: 16),
 

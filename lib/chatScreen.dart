@@ -8,6 +8,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import 'utils/challengeUtils.dart';
+import 'services/challengeService.dart';
 
 class ChatScreen extends StatefulWidget {
   final String challengeId;
@@ -98,36 +100,13 @@ class _ChatScreenState extends State<ChatScreen> {
       joinedAt: date,
       totalDays: 30,
     );
-    final userStreak = await getStreak();
+    final userStreak = await ChallengeService.getStreak(challengeId: widget.challengeId, uid: uid);
       setState(() {
         joinedAt = date;
         currentDay = dayNumber;
         streak = userStreak;
       });
   }
-
-  int calculateDayNumber({
-      required DateTime joinedAt,
-      required int totalDays,
-    }) {
-      final now = DateTime.now();
-
-      final start = DateTime(
-        joinedAt.year,
-        joinedAt.month,
-        joinedAt.day,
-      );
-
-      final today = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      );
-
-      final day = today.difference(start).inDays + 1;
-
-      return day.clamp(1, totalDays);
-    }
 
   String formatChatDate(DateTime date) {
     final now = DateTime.now();
@@ -234,42 +213,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     loadJoinedAt();
  }
-
-  Future<int> getStreak() async {
-    // Simple logic: count consecutive days with messages uploaded
-    final messages = await FirebaseFirestore.instance
-        .collection('challenges')
-        .doc(widget.challengeId)
-        .collection('messages')
-        .where('userId', isEqualTo: uid)
-        .orderBy('createdAtLocal', descending: true)
-        .get();
-
-    int count = 0;
-    DateTime? lastDay;
-    print(messages.docs);
-    for (var doc in messages.docs) {
-      final data = doc.data();
-      print(data);
-      final createdAt = (data['createdAtLocal'] as Timestamp).toDate();
-      print(createdAt);
-      final day = DateTime(createdAt.year, createdAt.month, createdAt.day);
-      if (lastDay == null) {
-        lastDay = day;
-        count++;
-      } else {
-        if (lastDay.difference(day).inDays == 1) {
-          count++;
-          lastDay = day;
-        } else if (lastDay.difference(day).inDays == 0) {
-          lastDay = day;
-        } else {
-          break;
-        }
-      }
-    }
-    return count;
-  }
 
   Future<void> pickImage() async {
     final picker = ImagePicker();
@@ -539,10 +482,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               Padding(
                                 padding:
                                     const EdgeInsets.only(bottom: 6),
-                                child: CachedNetworkImage(
-                                  imageUrl: data['imageUrl'],
+                                child: SizedBox(
                                   height: 160,
-                                  fit: BoxFit.cover,
+                                  width: 100,
+                                  child: CachedNetworkImage(
+                                    imageUrl: data['imageUrl'],
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(
+                                      color: Colors.grey[300],
+                                    ),
+                                    errorWidget: (context, url, error) => Container(
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.broken_image),
+                                    ),
+                                  ),
                                 ),
                               ),
                             if (data['text'] != null &&
@@ -642,166 +595,6 @@ class _ChatScreenState extends State<ChatScreen> {
             totalDays: 30,
             streak: streak,
           ),
-          // Expanded(
-          //   // child: StreamBuilder<QuerySnapshot>(
-          //   //   stream: FirebaseFirestore.instance
-          //   //       .collection('challenges')
-          //   //       .doc(widget.challengeId)
-          //   //       .collection('messages')
-          //   //       .orderBy('createdAtLocal')
-          //   //       .snapshots(),
-          //   //   builder: (context, snapshot) {
-          //   //     if (!snapshot.hasData) {
-          //   //       return const Center(child: CircularProgressIndicator());
-          //   //     }
-
-          //   //     final messages = snapshot.data!.docs;
-
-          //   //     WidgetsBinding.instance.addPostFrameCallback((_) {
-          //   //       if (_scrollController.hasClients) {
-          //   //         _scrollController.animateTo(
-          //   //           _scrollController.position.maxScrollExtent,
-          //   //           duration: const Duration(milliseconds: 300),
-          //   //           curve: Curves.easeOut,
-          //   //         );
-          //   //       }
-          //   //     });
-
-          //   //     return ListView.builder(
-          //   //       controller: _scrollController,
-          //   //       padding: const EdgeInsets.all(12),
-          //   //       itemCount: messages.length,
-          //   //       itemBuilder: (context, index) {
-          //   //         final data = messages[index].data() as Map<String, dynamic>;
-
-          //   //         final currentTime = (data['createdAtLocal'] as Timestamp).toDate();
-
-          //   //         DateTime? previousTime;
-          //   //         if (index > 0) {
-          //   //           final prevData = messages[index - 1].data() as Map<String, dynamic>;
-          //   //           previousTime = (prevData['createdAtLocal'] as Timestamp).toDate();
-          //   //         }
-
-          //   //         final isNewDay = previousTime == null ||
-          //   //             currentTime.year != previousTime.year ||
-          //   //             currentTime.month != previousTime.month ||
-          //   //             currentTime.day != previousTime.day;
-
-          //   //         final isMe = data['userId'] == uid;
-          //   //         final avatarColor = getColorForUser(data['userId']);
-          //   //         final userId = data['userId'];
-
-          //   //                             // Check cache first
-          //   //         String username = _usernamesCache[userId] ?? 'User';
-
-          //   //         // If not cached, fetch from Firestore
-          //   //         if (!_usernamesCache.containsKey(userId)) {
-          //   //           FirebaseFirestore.instance
-          //   //               .collection('users')
-          //   //               .doc(userId)
-          //   //               .get()
-          //   //               .then((doc) {
-          //   //             if (doc.exists) {
-          //   //               setState(() {
-          //   //                 _usernamesCache[userId] = doc['username'] ?? 'User';
-          //   //               });
-          //   //             }
-          //   //           });
-          //   //         }
-
-          //   //         return Column(
-          //   //           crossAxisAlignment:
-          //   //               isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          //   //           children: [
-          //   //             if (isNewDay) _dateSeparator(formatChatDate(currentTime)),
-          //   //             const SizedBox(height: 6),
-
-          //   //             // HEADER: avatar + username
-          //   //             Row(
-          //   //               crossAxisAlignment: CrossAxisAlignment.center,
-          //   //               mainAxisAlignment:
-          //   //                   isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-          //   //               children: [
-          //   //                 Text(
-          //   //                   username,
-          //   //                   style: const TextStyle(
-          //   //                     fontSize: 12,
-          //   //                     fontWeight: FontWeight.bold,
-          //   //                   ),
-          //   //                 ),
-          //   //                 const SizedBox(width: 6),
-          //   //                 CircleAvatar(
-          //   //                     radius: 16,
-          //   //                     backgroundColor: avatarColor,
-          //   //                     child: Text(
-          //   //                       username[0].toUpperCase(),
-          //   //                       style: const TextStyle(
-          //   //                         color: Colors.white,
-          //   //                         fontWeight: FontWeight.bold,
-          //   //                       ),
-          //   //                     ),
-          //   //                   ),
-          //   //               ],
-          //   //             ),
-
-          //   //             const SizedBox(height: 4),
-
-          //   //             // MESSAGE BUBBLE
-          //   //             Container(
-          //   //               margin: EdgeInsets.only(
-          //   //                 left: isMe ? 0 : 22,
-          //   //                 right: isMe ? 22 : 0,
-          //   //               ),
-          //   //               padding: const EdgeInsets.all(10),
-          //   //               decoration: BoxDecoration(
-          //   //                 color: isMe ? Colors.green[200] : Colors.grey[300],
-          //   //                 borderRadius: BorderRadius.circular(12),
-          //   //               ),
-          //   //               child: Column(
-          //   //                 crossAxisAlignment: CrossAxisAlignment.start,
-          //   //                 children: [
-          //   //                   if (data['imageUrl'] != null)
-          //   //                     Padding(
-          //   //                       padding: const EdgeInsets.only(bottom: 6),
-          //   //                       child: CachedNetworkImage(
-          //   //                         imageUrl: data['imageUrl'],
-          //   //                         height: 160,
-          //   //                         fit: BoxFit.cover,
-          //   //                       ),
-          //   //                     ),
-          //   //                   if (data['text'] != null &&
-          //   //                       data['text'].toString().isNotEmpty)
-          //   //                     Text(data['text']),
-          //   //                 ],
-          //   //               ),
-          //   //             ),
-
-          //   //             const SizedBox(height: 2),
-
-          //   //             // TIMESTAMP
-          //   //             Padding(
-          //   //               padding: EdgeInsets.only(
-          //   //                 left: isMe ? 0 : 22,
-          //   //                 right: isMe ? 22 : 0,
-          //   //               ),
-          //   //               child: Text(
-          //   //                 '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}',
-          //   //                 style: const TextStyle(
-          //   //                   fontSize: 10,
-          //   //                   color: Colors.grey,
-          //   //                 ),
-          //   //               ),
-          //   //             ),
-
-          //   //             const SizedBox(height: 10),
-          //   //           ],
-          //   //         );
-          //   //       },
-          //   //     );
-          //   //   },
-          //   // ),
-            
-          // ),
           Expanded(
             child: DefaultTabController(
               length: 2,
