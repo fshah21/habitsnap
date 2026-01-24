@@ -7,6 +7,7 @@ import 'chatScreen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'profileScreen.dart';
 
 class GoalScreen extends StatefulWidget {
   const GoalScreen({super.key});
@@ -177,7 +178,12 @@ class _GoalScreenState extends State<GoalScreen> {
               backgroundImage: AssetImage('assets/user.jpg'),
             ),
             onPressed: () {
-              // Profile screen later
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ProfileScreen(),
+                ),
+              );
             },
           ),
           const SizedBox(width: 12),
