@@ -241,7 +241,7 @@ class _ChatScreenState extends State<ChatScreen> {
     required int streak,
   }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.green.withOpacity(0.12),
@@ -258,9 +258,9 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           Text(
-            '🔥 $streak-day streak',
+            '🔥 $streak',
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -536,7 +536,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(
             child: Text(
-              'No proofs yet 📸\nBe the first to upload!',
+              'No snaps yet 📸\nBe the first to upload!',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey),
             ),
@@ -603,7 +603,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   const TabBar(
                     tabs: [
                       Tab(text: 'Chat'),
-                      Tab(text: 'Proofs'),
+                      Tab(text: 'Snaps'),
                     ],
                   ),
                   Expanded(

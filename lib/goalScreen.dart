@@ -388,42 +388,25 @@ class _GoalScreenState extends State<GoalScreen> {
             // 🔹 Bottom row: Buttons
             Row(
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (isDiscover) {
-                        // Join challenge
-                        await joinChallenge(challenge['id']);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Challenge joined!'),
-                          ),
-                        );
-                        if (!context.mounted) return;
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ChatScreen(
-                                challengeId: challenge['id'],
-                                challengeTitle: challenge['title'],
-                              ),
-                            ),
-                          );
-                      } else {
+                if (!isDiscover)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
                         // Submit proof
                         submitProof(challenge);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDiscover ? Colors.blue : Colors.green,
-                    ),
-                    child: Text(
-                      isDiscover ? 'Join Challenge' : 'Submit Proof',
-                      style: const TextStyle(color: Colors.white),
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                      ),
+                      child: const Text(
+                        'Submit Proof',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
+
+                // Always show this
+                if (!isDiscover) const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
@@ -454,7 +437,7 @@ class _GoalScreenState extends State<GoalScreen> {
                   ),
                 ),
               ],
-            ),
+            )
           ],
         ),
       ),
