@@ -34,6 +34,68 @@ class ChallengeDetailsScreen extends StatelessWidget {
     print('User joined challenge');
   }
 
+  Future<void> _handleJoin(BuildContext context, Map<String, dynamic> challenge) async {
+    print("Handle join");
+    final challengeId = challenge['id'];
+
+    await joinChallenge(challengeId);
+    if (!context.mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white, // white background
+        contentPadding: const EdgeInsets.all(45), // optional padding
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '🎉 You’re in!',
+              textAlign: TextAlign.center, // center the text
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'You’ve joined the challenge.\nStay consistent and have fun!',
+              textAlign: TextAlign.center, // center the body
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 42),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // close dialog
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text(
+                  'Go to Challenge',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          challengeId: challengeId,
+          challengeTitle: challenge['title'],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,20 +159,7 @@ class ChallengeDetailsScreen extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () async {
-                    final challengeId = challenge['id'];
-                    await joinChallenge(challengeId);
-                    if (!context.mounted) return;
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            challengeId: challengeId,
-                            challengeTitle: challenge['title'],
-                          ),
-                        ),
-                      );
-                  },
+                  onPressed: () => _handleJoin(context, challenge),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     padding: const EdgeInsets.symmetric(vertical: 14),
