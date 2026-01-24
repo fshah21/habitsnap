@@ -89,8 +89,7 @@ class ChallengeDetailsScreen extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (_) => ChatScreen(
-          challengeId: challengeId,
-          challengeTitle: challenge['title'],
+          challenge: challenge
         ),
       ),
     );

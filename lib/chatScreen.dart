@@ -10,16 +10,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'utils/challengeUtils.dart';
 import 'services/challengeService.dart';
+import 'challengeDetailsScreen.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String challengeId;
-  final String challengeTitle;
+  final Map<String, dynamic> challenge;
   final File? preloadedImage;
 
   const ChatScreen({
     super.key,
-    required this.challengeId,
-    required this.challengeTitle,
+    required this.challenge,
     this.preloadedImage,
   });
 
@@ -46,7 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _proofsStream = FirebaseFirestore.instance
       .collection('challenges')
-      .doc(widget.challengeId)
+      .doc(widget.challenge['id'])
       .collection('messages')
       .where('imageUrl', isNull: false)
       .orderBy('createdAtLocal', descending: true)
@@ -55,6 +54,46 @@ class _ChatScreenState extends State<ChatScreen> {
     if (widget.preloadedImage != null) {
       _selectedImage = widget.preloadedImage;
     }
+  }
+
+  Future<void> leaveChallenge(String challengeId) async {
+    print("Leave challenge");
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final uid = user.uid;
+    final userChallengeRef = FirebaseFirestore.instance
+        .collection('userchallenges')
+        .doc(uid)
+        .collection('challenges')
+        .doc(challengeId);
+
+    final doc = await userChallengeRef.get();
+    if (!doc.exists) return;
+
+    await userChallengeRef.update({
+      'status': 'inactive',
+      'leftAt': FieldValue.serverTimestamp(),
+    });
+
+    print('User $uid left challenge $challengeId');
+
+    // Optional: decrement participant count in challenge document
+    final challengeRef = FirebaseFirestore.instance
+        .collection('challenges')
+        .doc(challengeId);
+
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      final snap = await transaction.get(challengeRef);
+      if (!snap.exists) return;
+
+      final participants = snap['participants'] ?? 0;
+      transaction.update(challengeRef, {
+        'participants': participants > 0 ? participants - 1 : 0,
+      });
+    });
+
+    print('Participant count updated');
   }
 
   Future<File> compressImage(File file) async {
@@ -79,6 +118,81 @@ class _ChatScreenState extends State<ChatScreen> {
     return email[0].toUpperCase();
   }
 
+  Future<void> _showLeaveDialog(BuildContext context, String challengeId) async {
+    // Show confirmation dialog
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white, // white background
+        contentPadding: const EdgeInsets.all(45),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '⚠️ Leave Challenge?',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Are you sure you want to leave this challenge?\nYou will lose your current streak and progress.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 42),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // close dialog without leaving
+                    },
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.grey),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.of(context).pop(); // close dialog
+                      await leaveChallenge(challengeId); // handle leaving
+                      if (!context.mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('You left the challenge'),
+                        ),
+                      );
+
+                      // Optionally navigate back to Discover or My Challenges
+                      Navigator.of(context).pop(); 
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text(
+                      'Leave',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> loadJoinedAt() async {
     final date = await getJoinedAt();
     if (date == null) return;
@@ -86,7 +200,7 @@ class _ChatScreenState extends State<ChatScreen> {
       joinedAt: date,
       totalDays: 30,
     );
-    final userStreak = await ChallengeService.getStreak(challengeId: widget.challengeId, uid: uid);
+    final userStreak = await ChallengeService.getStreak(challengeId: widget.challenge['id'], uid: uid);
       setState(() {
         joinedAt = date;
         currentDay = dayNumber;
@@ -119,7 +233,7 @@ class _ChatScreenState extends State<ChatScreen> {
         .collection('userchallenges') // top-level collection
         .doc(uid)                     // user's document
         .collection('challenges')     // subcollection
-        .doc(widget.challengeId)      // challenge document
+        .doc(widget.challenge['id'])      // challenge document
         .get();
 
     if (!challengeDoc.exists) return null;
@@ -151,7 +265,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final ref = FirebaseStorage.instance
             .ref()
             .child('challenge_proofs')
-            .child(widget.challengeId)
+            .child(widget.challenge['id'])
             .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
 
         print('📤 Uploading compressed image...');
@@ -180,7 +294,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     await FirebaseFirestore.instance
         .collection('challenges')
-        .doc(widget.challengeId)
+        .doc(widget.challenge['id'])
         .collection('messages')
         .add({
         'userId': uid,
@@ -361,7 +475,7 @@ class _ChatScreenState extends State<ChatScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('challenges')
-                .doc(widget.challengeId)
+                .doc(widget.challenge['id'])
                 .collection('messages')
                 .orderBy('createdAtLocal')
                 .snapshots(),
@@ -537,7 +651,7 @@ class _ChatScreenState extends State<ChatScreen> {
           stream: _showOnlyMine
               ? FirebaseFirestore.instance
                   .collection('challenges')
-                  .doc(widget.challengeId)
+                  .doc(widget.challenge['id'])
                   .collection('messages')
                   .where('imageUrl', isNull: false)
                   .where('userId', isEqualTo: uid)
@@ -611,7 +725,38 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.challengeTitle),
+        title: Text(widget.challenge['title']),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'details') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChallengeDetailsScreen(
+                      challenge: widget.challenge,
+                    ),
+                  ),
+                );
+              } else if (value == 'leave') {
+                _showLeaveDialog(context, widget.challenge['id']); // confirmation dialog
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'details',
+                child: Text('Challenge Details'),
+              ),
+              const PopupMenuItem(
+                value: 'leave',
+                child: Text(
+                  'Leave Challenge',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        ],
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           onPressed: () {

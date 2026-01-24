@@ -21,7 +21,7 @@ class GoalScreen extends StatefulWidget {
 class _GoalScreenState extends State<GoalScreen> {
   int _currentIndex = 0;
 
-  Stream<Set<String>> joinedChallengeIdsStream() {
+  Stream<Set<String>> activeChallengeIdsStream() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     if (uid == null) {
@@ -29,13 +29,16 @@ class _GoalScreenState extends State<GoalScreen> {
     }
 
     return FirebaseFirestore.instance
-        .collection('userchallenges')
-        .doc(uid)
-        .collection('challenges')
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs.map((doc) => doc.id).toSet(),
-        );
+      .collection('userchallenges')
+      .doc(uid)
+      .collection('challenges')
+      .snapshots()
+      .map(
+        (snapshot) => snapshot.docs
+            .where((doc) => doc['status'] == 'active')
+            .map((doc) => doc.id)
+            .toSet(),
+      );
   }
 
   Stream<List<Map<String, dynamic>>> discoverChallengesStream() {
@@ -72,8 +75,7 @@ class _GoalScreenState extends State<GoalScreen> {
             context,
             MaterialPageRoute(
               builder: (_) => ChatScreen(
-                challengeId: challenge['id'],
-                challengeTitle: challenge['title'],
+                challenge: challenge,
                 preloadedImage: imageFile,
               ),
             ),
@@ -142,20 +144,26 @@ class _GoalScreenState extends State<GoalScreen> {
         doc.id: doc.data(), // contains joinedAt, status, etc.
     };
 
-    final challengeIds = userChallengeMap.keys.toList();
+    /// 2️⃣ Filter only active challenges
+    final activeChallengeIds = userChallengeMap.entries
+        .where((entry) => entry.value['status'] == 'active')
+        .map((entry) => entry.key)
+        .toList();
 
-    // Firestore whereIn safety (MVP workaround)
-    if (challengeIds.length > 10) {
-      challengeIds.length = 10;
+    if (activeChallengeIds.isEmpty) return [];
+
+    // Firestore whereIn safety (max 10 IDs)
+    if (activeChallengeIds.length > 10) {
+      activeChallengeIds.length = 10;
     }
 
-    /// 2️⃣ Fetch challenges
+     /// 3️⃣ Fetch challenge details
     final challengesSnapshot = await FirebaseFirestore.instance
         .collection('challenges')
-        .where(FieldPath.documentId, whereIn: challengeIds)
+        .where(FieldPath.documentId, whereIn: activeChallengeIds)
         .get();
 
-    /// 3️⃣ Merge challenge + userChallenge data
+    /// 4️⃣ Merge challenge + userChallenge data
     return challengesSnapshot.docs.map((doc) {
       final userData = userChallengeMap[doc.id];
 
@@ -169,7 +177,7 @@ class _GoalScreenState extends State<GoalScreen> {
 
         // 👇 USER-SPECIFIC
         'joinedAt': userData?['joinedAt'],
-        'status': userData?['status'], // optional, future-proof
+        'status': userData?['status'], // should be 'active'
       };
     }).toList();
   });
@@ -229,7 +237,7 @@ class _GoalScreenState extends State<GoalScreen> {
 
   Widget _buildDiscoverTab() {
     return StreamBuilder<Set<String>>(
-      stream: joinedChallengeIdsStream(),
+      stream: activeChallengeIdsStream(),
       builder: (context, joinedSnapshot) {
         if (joinedSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -426,8 +434,7 @@ class _GoalScreenState extends State<GoalScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (_) => ChatScreen(
-                              challengeId: challenge['id'],
-                              challengeTitle: challenge['title'],
+                              challenge: challenge
                             ),
                           ),
                         );
