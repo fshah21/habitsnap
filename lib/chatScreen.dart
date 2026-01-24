@@ -39,6 +39,7 @@ class _ChatScreenState extends State<ChatScreen> {
   DateTime? joinedAt;
   final ScrollController _scrollController = ScrollController();
   late final Stream<QuerySnapshot> _proofsStream;
+  bool _showOnlyMine = false;
 
   @override
   void initState() {
@@ -69,21 +70,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     return File(compressed!.path);
-  }
-
-  Color getColorForUser(String userId) {
-    final colors = [
-      Colors.red,
-      Colors.green,
-      Colors.blue,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.brown,
-      Colors.pink,
-    ];
-    final index = userId.codeUnits.fold(0, (prev, c) => prev + c) % colors.length;
-    return colors[index];
   }
 
   String getInitialsFromEmail(String email) {
@@ -523,58 +509,103 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildProofTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _proofsStream,
-      builder: (context, snapshot) {
-        print("Again in builder");
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        print(snapshot);
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Text(
-              'No snaps yet 📸\nBe the first to upload!',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+  print("In proof tab");
+  return Column(
+    children: [
+      // 🔹 Toggle to show only my snaps
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            const Text('My Snaps'),
+            Switch(
+              value: _showOnlyMine,
+              onChanged: (val) {
+                setState(() {
+                  _showOnlyMine = val;
+                });
+              },
             ),
-          );
-        }
+          ],
+        ),
+      ),
 
-        final proofs = snapshot.data!.docs;
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(8),
-          gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 6,
-            mainAxisSpacing: 6,
-          ),
-          itemCount: proofs.length,
-          itemBuilder: (context, index) {      
-            final data =
-                proofs[index].data() as Map<String, dynamic>;
-              
-            final imageUrl = data['imageUrl'] as String?;
-            if (imageUrl == null || imageUrl.isEmpty) {
-              return const SizedBox.shrink();
+      // 🔹 Grid of snaps
+      Expanded(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: _showOnlyMine
+              ? FirebaseFirestore.instance
+                  .collection('challenges')
+                  .doc(widget.challengeId)
+                  .collection('messages')
+                  .where('imageUrl', isNull: false)
+                  .where('userId', isEqualTo: uid)
+                  .orderBy('createdAtLocal', descending: true)
+                  .snapshots()
+              : _proofsStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
             }
 
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: data['imageUrl'],
-                fit: BoxFit.cover,
+            // Check for errors
+            if (snapshot.hasError) {
+              print('Error in StreamBuilder: ${snapshot.error}');
+              return Center(
+                child: Text(
+                  'Something went wrong 😢\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Text(
+                  _showOnlyMine
+                      ? 'You have not uploaded any snaps yet 📸'
+                      : 'No snaps yet 📸\nBe the first to upload!',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              );
+            }
+
+            final proofs = snapshot.data!.docs;
+
+            return GridView.builder(
+              padding: const EdgeInsets.all(8),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 6,
+                mainAxisSpacing: 6,
               ),
+              itemCount: proofs.length,
+              itemBuilder: (context, index) {
+                final data = proofs[index].data() as Map<String, dynamic>;
+                final imageUrl = data['imageUrl'] as String?;
+                if (imageUrl == null || imageUrl.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                  ),
+                );
+              },
             );
           },
-        );
-      },
-    );
-  }
+        ),
+      ),
+    ],
+  );
+}
 
   @override
   Widget build(BuildContext context) {
