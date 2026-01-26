@@ -551,30 +551,54 @@ class _ChatScreenState extends State<ChatScreen> {
                       if (isNewDay)
                         _dateSeparator(formatChatDate(currentTime)),
                       Row(
-                        mainAxisAlignment: isMe
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
+                        mainAxisAlignment:
+                            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                         children: [
-                          Text(
-                            username,
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 6),
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: avatarColor,
-                            child: Text(
-                              username[0].toUpperCase(),
-                              style: const TextStyle(
+                          if (!isMe) ...[
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: avatarColor,
+                              child: Text(
+                                username[0].toUpperCase(),
+                                style: const TextStyle(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.bold),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            Text(
+                              username,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+
+                          if (isMe) ...[
+                            Text(
+                              username,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: avatarColor,
+                              child: Text(
+                                username[0].toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-
                       const SizedBox(height: 4),
 
                       Container(
