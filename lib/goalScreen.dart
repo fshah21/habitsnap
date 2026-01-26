@@ -20,6 +20,7 @@ class GoalScreen extends StatefulWidget {
 
 class _GoalScreenState extends State<GoalScreen> {
   int _currentIndex = 0;
+  Map<String, String> _usernamesCache = {};
 
   Stream<Set<String>> activeChallengeIdsStream() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -191,15 +192,48 @@ class _GoalScreenState extends State<GoalScreen> {
       _buildJoinedTab(),
     ];
 
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final uid = currentUser?.uid;
+
+    String username = 'U';
+    Color avatarColor = Colors.grey;
+
+    if (uid != null) {
+      avatarColor = getColorForUser(uid);
+      username = _usernamesCache[uid] ?? 'U';
+
+      if (!_usernamesCache.containsKey(uid)) {
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get()
+            .then((doc) {
+          if (doc.exists) {
+            setState(() {
+              _usernamesCache[uid] =
+                  doc['username'] ?? 'User';
+            });
+          }
+        });
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Habit Snap'),
+        title: const Text('Habit Snappppp'),
         backgroundColor: Colors.yellow[700],
         actions: [
           IconButton(
-            icon: const CircleAvatar(
-              radius: 20,
-              backgroundImage: AssetImage('assets/user.jpg'),
+            icon: CircleAvatar(
+              radius: 18,
+              backgroundColor: avatarColor,
+              child: Text(
+                username[0].toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             onPressed: () {
               Navigator.push(

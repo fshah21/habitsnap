@@ -338,24 +338,44 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> pickImage() async {
-    final picker = ImagePicker();
-    try {
-        final pickedFile = await picker.pickImage(
-          source: ImageSource.camera,
-          imageQuality: 70,
-        );
-
-        if (pickedFile != null) {
-          setState(() {
-            _selectedImage = File(pickedFile.path);
-          });
-          print('Image selected: ${pickedFile.path}');
-        } else {
-          print('No image selected.');
-        }
-      } catch (e) {
-        print('Error picking image: $e');
-      }
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () async {
+                Navigator.pop(context);
+                final picked = await ImagePicker()
+                    .pickImage(source: ImageSource.camera);
+                if (picked != null) {
+                  setState(() {
+                    _selectedImage = File(picked.path);
+                  });
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo),
+              title: const Text('Gallery'),
+              onTap: () async {
+                Navigator.pop(context);
+                final picked = await ImagePicker()
+                    .pickImage(source: ImageSource.gallery);
+                if (picked != null) {
+                  setState(() {
+                    _selectedImage = File(picked.path);
+                  });
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _challengeProgressBox({
