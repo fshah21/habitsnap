@@ -301,6 +301,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'userEmail': userEmail,
         'text': text,
         'imageUrl': imageUrl,
+        'likes': <String>[],
         'createdAt': FieldValue.serverTimestamp(),
         'createdAtLocal': Timestamp.now(),
     });
@@ -313,6 +314,28 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     loadJoinedAt();
  }
+
+ Future<void> toggleLike(
+    String messageId,
+    Map<String, dynamic> data,
+  ) async {
+    final messageRef = FirebaseFirestore.instance
+        .collection('challenges')
+        .doc(widget.challenge['id'])
+        .collection('messages')
+        .doc(messageId);
+
+    final List likes =
+        List<String>.from(data['likes'] ?? []);
+
+    if (likes.contains(uid)) {
+      likes.remove(uid);
+    } else {
+      likes.add(uid);
+    }
+
+    await messageRef.update({'likes': likes});
+  }
 
   Future<void> pickImage() async {
     final picker = ImagePicker();
@@ -618,25 +641,56 @@ class _ChatScreenState extends State<ChatScreen> {
                               CrossAxisAlignment.start,
                           children: [
                             if (data['imageUrl'] != null)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 6),
-                                child: SizedBox(
-                                  height: 160,
-                                  width: 100,
-                                  child: CachedNetworkImage(
-                                    imageUrl: data['imageUrl'],
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => Container(
-                                      color: Colors.grey[300],
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: GestureDetector(
+                                onDoubleTap: () =>
+                                    toggleLike(messages[index].id, data),
+                                child: Stack(
+                                  children: [
+                                    SizedBox(
+                                      height: 160,
+                                      width: 100,
+                                      child: CachedNetworkImage(
+                                        imageUrl: data['imageUrl'],
+                                        fit: BoxFit.cover,
+                                      ),
                                     ),
-                                    errorWidget: (context, url, error) => Container(
-                                      color: Colors.grey[300],
-                                      child: const Icon(Icons.broken_image),
-                                    ),
-                                  ),
+
+                                    if ((data['likes'] ?? []).isNotEmpty)
+                                      Positioned(
+                                        top: 6,
+                                        right: 6,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.favorite,
+                                                color: Colors.red,
+                                                size: 14,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${(data['likes'] as List).length}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
+                            ),
                             if (data['text'] != null &&
                                 data['text']
                                     .toString()
