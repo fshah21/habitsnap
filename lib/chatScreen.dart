@@ -39,6 +39,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   late final Stream<QuerySnapshot> _proofsStream;
   bool _showOnlyMine = false;
+  DateTime? _lastUploadDate;
+  bool _showTodayStatus = true;
 
   @override
   void initState() {
@@ -53,6 +55,34 @@ class _ChatScreenState extends State<ChatScreen> {
     loadJoinedAt();
     if (widget.preloadedImage != null) {
       _selectedImage = widget.preloadedImage;
+    }
+    _loadLastUpload();
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _showTodayStatus = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _loadLastUpload() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('challenges')
+        .doc(widget.challenge['id'])
+        .collection('messages')
+        .where('userId', isEqualTo: uid)
+        .where('imageUrl', isNull: false)
+        .orderBy('createdAtLocal', descending: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      final data = snapshot.docs.first.data();
+      setState(() {
+        _lastUploadDate =
+            (data['createdAtLocal'] as Timestamp).toDate();
+      });
     }
   }
 
@@ -287,6 +317,19 @@ class _ChatScreenState extends State<ChatScreen> {
         print(stackTrace);
       } finally {
         setState(() => _isUploading = false);
+
+        if (imageUrl != null) {
+          setState(() {
+            _lastUploadDate = DateTime.now();
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("🎉 Proof submitted for today!"),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       }
     }
 
@@ -314,6 +357,58 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     loadJoinedAt();
  }
+
+ Widget _statusBanner({
+    required String text,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      constraints: const BoxConstraints(
+        maxWidth: 320,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+ Widget _buildTodayStatus() {
+    if (_lastUploadDate == null) {
+      return _statusBanner(
+        text: "📸 Upload today’s proof",
+      );
+    }
+
+    final now = DateTime.now();
+    final last = _lastUploadDate!;
+
+    final missedDays = DateTime(now.year, now.month, now.day)
+        .difference(DateTime(last.year, last.month, last.day))
+        .inDays;
+
+    if (missedDays == 0) {
+      return _statusBanner(
+        text: "🎉 Done for today! Keep the streak going",
+      );
+    }
+
+    if (missedDays == 1) {
+      return _statusBanner(
+        text: "⚠️ Missed yesterday",
+      );
+    }
+
+    return _statusBanner(
+      text: "😕 Missed $missedDays days",
+    );
+  }
 
  Future<void> toggleLike(
     String messageId,
@@ -514,6 +609,9 @@ class _ChatScreenState extends State<ChatScreen> {
     return Column(
       children: [
         /// 🔹 CHAT LIST
+
+        if (_showTodayStatus) _buildTodayStatus(),
+
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
