@@ -388,9 +388,11 @@ class _GoalScreenState extends State<GoalScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 30,
-                  backgroundImage: AssetImage('assets/user.jpg'),
+                  backgroundImage: AssetImage(
+                    'assets/${challenge['id']}.jpg',
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

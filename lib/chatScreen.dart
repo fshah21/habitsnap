@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'utils/challengeUtils.dart';
 import 'services/challengeService.dart';
 import 'challengeDetailsScreen.dart';
+import 'goalScreen.dart';
 
 class ChatScreen extends StatefulWidget {
   final Map<String, dynamic> challenge;
@@ -41,6 +42,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _showOnlyMine = false;
   DateTime? _lastUploadDate;
   bool _showTodayStatus = true;
+  final totalDays = 7; // or challenge['totalDays']
 
   @override
   void initState() {
@@ -228,14 +230,74 @@ class _ChatScreenState extends State<ChatScreen> {
     if (date == null) return;
     final dayNumber = calculateDayNumber(
       joinedAt: date,
-      totalDays: 30,
+      totalDays: 7,
     );
+    print('Day number $dayNumber');
+    if (dayNumber == totalDays) {
+      // User just completed the last day
+      _showChallengeCompletedDialog(context, widget.challenge);
+    }
+
     final userStreak = await ChallengeService.getStreak(challengeId: widget.challenge['id'], uid: uid);
       setState(() {
         joinedAt = date;
         currentDay = dayNumber;
         streak = userStreak;
       });
+  }
+
+  void _showChallengeCompletedDialog(BuildContext context, Map<String, dynamic> challenge) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // force user to tap the button
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        contentPadding: const EdgeInsets.all(45),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '🎉 Challenge Completed!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "Congratulations! You’ve completed the full challenge:\n${challenge['title']} ✅",
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 42),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // close dialog
+                  // Optional: mark challenge as completed in state/db here
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => GoalScreen(), // replace with your GoalScreen
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text(
+                  'Awesome!',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String formatChatDate(DateTime date) {
@@ -996,7 +1058,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           _challengeProgressBox(
             day: currentDay,
-            totalDays: 30,
+            totalDays: 7,
             streak: streak,
           ),
           Expanded(
