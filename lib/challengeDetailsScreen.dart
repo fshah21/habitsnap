@@ -10,12 +10,7 @@ class ChallengeDetailsScreen extends StatelessWidget {
 
   Future<void> joinChallenge(String challengeId) async {
     final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      // Not logged in → handle gracefully
-      print('User not logged in');
-      return;
-    }
+    if (user == null) return;
 
     final uid = user.uid;
 
@@ -25,15 +20,30 @@ class ChallengeDetailsScreen extends StatelessWidget {
         .collection('challenges')
         .doc(challengeId);
 
-    await userChallengeRef.set({
-      'uid': uid,
+    final challengeRef = FirebaseFirestore.instance
+      .collection('challenges')
+      .doc(challengeId);
+
+    // 🔒 Optional: prevent double join
+    final existing = await userChallengeRef.get();
+    if (existing.exists) return;
+
+    // ✅ Batch write = atomic
+    final batch = FirebaseFirestore.instance.batch();
+
+    batch.set(userChallengeRef, {
       'joinedAt': FieldValue.serverTimestamp(),
       'status': 'active',
     });
 
-    print('User joined challenge');
-  }
+    batch.update(challengeRef, {
+      'participants': FieldValue.increment(1),
+    });
 
+    await batch.commit();
+
+    print('User joined challenge + participant incremented');
+  }
   Future<void> _handleJoin(BuildContext context, Map<String, dynamic> challenge) async {
     print("Handle join");
     final challengeId = challenge['id'];

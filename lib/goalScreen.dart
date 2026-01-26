@@ -220,7 +220,7 @@ class _GoalScreenState extends State<GoalScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Habit Snappppp'),
+        title: const Text('Habit Snap'),
         backgroundColor: Colors.yellow[700],
         actions: [
           IconButton(
