@@ -5,6 +5,9 @@ import 'goalScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
+import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:geolocator/geolocator.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +24,42 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _initializeGoogleSignIn();
+  }
+
+  Future<String?> getFcmToken() async {
+    final messaging = FirebaseMessaging.instance;
+
+    await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    String? fcmToken = await messaging.getToken();
+    print("🔥 FCM TOKEN: $fcmToken");
+
+    if (Platform.isIOS) {
+      String? apnsToken = await messaging.getAPNSToken();
+      print('APNS token: $apnsToken');
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+
+      if (uid == null) {
+        return null;
+      }
+
+      FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .update({'fcmToken': fcmToken});
+
+      return fcmToken;
+    }
+
+    // final fcmToken = await messaging.getToken();
+    // print("FCM Device Token: $fcmToken");
+
+    return null;
   }
 
   Future<void> _initializeGoogleSignIn() async {
@@ -87,6 +126,9 @@ class _HomeScreenState extends State<HomeScreen> {
               print('New user created with username: $randomUsername');
             }
 
+            await getFcmToken();
+            await getUserLocation();
+
             // Navigate to GoalScreen
             if (!mounted) return null;
             Navigator.pushReplacement(
@@ -102,6 +144,53 @@ class _HomeScreenState extends State<HomeScreen> {
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  Future<Position?> getUserLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Check if location services are enabled
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print("Location services are disabled.");
+      return null;
+    }
+
+    // Check for permissions
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        print("Location permissions are denied.");
+        return null;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      print("Location permissions are permanently denied.");
+      return null;
+    }
+
+    // Get current position
+    Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+    print("User location: ${position.latitude}, ${position.longitude}");
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return null;
+    }
+
+    FirebaseFirestore.instance.collection('users').doc(uid).update({
+      'location': {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      }
+    });
+
+    return position;
   }
 
   // Random username generator
