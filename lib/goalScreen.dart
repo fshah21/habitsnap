@@ -372,117 +372,226 @@ class _GoalScreenState extends State<GoalScreen> {
     );
   }
 
-  Widget _buildChallengeCard(Map<String, dynamic> challenge, bool isDiscover) {
-    print("Challenge $challenge");
+  // Widget _buildChallengeCard(Map<String, dynamic> challenge, bool isDiscover) {
+  //   print("Challenge $challenge");
+  //   return Card(
+  //     elevation: 4,
+  //     shape: RoundedRectangleBorder(
+  //       borderRadius: BorderRadius.circular(16),
+  //     ),
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           // 🔹 Top row: Image + Info
+  //           Row(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               CircleAvatar(
+  //                 radius: 30,
+  //                 backgroundImage: AssetImage(
+  //                   'assets/${challenge['id']}.jpg',
+  //                 ),
+  //               ),
+  //               const SizedBox(width: 16),
+  //               Expanded(
+  //                 child: Column(
+  //                   crossAxisAlignment: CrossAxisAlignment.start,
+  //                   children: [
+  //                     Text(
+  //                       challenge['title'],
+  //                       style: const TextStyle(
+  //                         fontSize: 18,
+  //                         fontWeight: FontWeight.bold,
+  //                       ),
+  //                     ),
+  //                     const SizedBox(height: 6),
+  //                     Text(
+  //                       '${challenge['participants']} participants',
+  //                       style: const TextStyle(color: Colors.grey),
+  //                     ),
+  //                     const SizedBox(height: 4),
+  //                     Text(
+  //                       'Duration: ${challenge['duration']} days',
+  //                       style: const TextStyle(color: Colors.grey),
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+
+  //           const SizedBox(height: 12),
+
+  //           if (!isDiscover && challenge['joinedAt'] != null)
+  //             _buildDayStreakRow(challenge),
+
+  //           const SizedBox(height: 16),
+
+  //           // 🔹 Bottom row: Buttons
+  //           Row(
+  //             children: [
+  //               if (!isDiscover)
+  //                 Expanded(
+  //                   child: ElevatedButton(
+  //                     onPressed: () async {
+  //                       // Submit proof
+  //                       submitProof(challenge);
+  //                     },
+  //                     style: ElevatedButton.styleFrom(
+  //                       backgroundColor: Colors.green,
+  //                     ),
+  //                     child: const Text(
+  //                       'Submit Proof',
+  //                       style: TextStyle(color: Colors.white),
+  //                     ),
+  //                   ),
+  //                 ),
+
+  //               // Always show this
+  //               if (!isDiscover) const SizedBox(width: 12),
+  //               Expanded(
+  //                 child: OutlinedButton(
+  //                   onPressed: () {
+  //                     if (isDiscover) {
+  //                       // Go to Challenge Details
+  //                       Navigator.push(
+  //                         context,
+  //                         MaterialPageRoute(
+  //                           builder: (_) => ChallengeDetailsScreen(
+  //                             challenge: challenge,
+  //                           ),
+  //                         ),
+  //                       );
+  //                     } else {
+  //                       // Go to Chat
+  //                       Navigator.push(
+  //                         context,
+  //                         MaterialPageRoute(
+  //                           builder: (_) => ChatScreen(
+  //                             challenge: challenge
+  //                           ),
+  //                         ),
+  //                       );
+  //                     }
+  //                   },
+  //                   child: Text(isDiscover ? 'View Details' : 'Open Chat'),
+  //                 ),
+  //               ),
+  //             ],
+  //           )
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  Widget _buildChallengeCard(
+      Map<String, dynamic> challenge,
+      bool isDiscover,
+  ) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 🔹 Top row: Image + Info
-            Row(
+      clipBehavior: Clip.antiAlias, // IMPORTANT
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 🔥 FULL-WIDTH IMAGE
+          SizedBox(
+            height: 160,
+            width: double.infinity,
+            child: Image.asset(
+              'assets/${challenge['id']}.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundImage: AssetImage(
-                    'assets/${challenge['id']}.jpg',
+                // TITLE
+                Text(
+                  challenge['title'],
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        challenge['title'],
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+
+                const SizedBox(height: 6),
+
+                // META INFO
+                Text(
+                  '${challenge['participants']} participants',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Duration: ${challenge['duration']} days',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+
+                const SizedBox(height: 12),
+
+                if (!isDiscover && challenge['joinedAt'] != null)
+                  _buildDayStreakRow(challenge),
+
+                const SizedBox(height: 16),
+
+                // 🔘 BUTTONS
+                Row(
+                  children: [
+                    if (!isDiscover)
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            submitProof(challenge);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                          ),
+                          child: const Text(
+                            'Submit Proof',
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${challenge['participants']} participants',
-                        style: const TextStyle(color: Colors.grey),
+
+                    if (!isDiscover) const SizedBox(width: 12),
+
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => isDiscover
+                                  ? ChallengeDetailsScreen(
+                                      challenge: challenge,
+                                    )
+                                  : ChatScreen(
+                                      challenge: challenge,
+                                    ),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          isDiscover ? 'View Details' : 'Open Chat',
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Duration: ${challenge['duration']} days',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
-
-            const SizedBox(height: 12),
-
-            if (!isDiscover && challenge['joinedAt'] != null)
-              _buildDayStreakRow(challenge),
-
-            const SizedBox(height: 16),
-
-            // 🔹 Bottom row: Buttons
-            Row(
-              children: [
-                if (!isDiscover)
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        // Submit proof
-                        submitProof(challenge);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                      ),
-                      child: const Text(
-                        'Submit Proof',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-
-                // Always show this
-                if (!isDiscover) const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      if (isDiscover) {
-                        // Go to Challenge Details
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ChallengeDetailsScreen(
-                              challenge: challenge,
-                            ),
-                          ),
-                        );
-                      } else {
-                        // Go to Chat
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ChatScreen(
-                              challenge: challenge
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    child: Text(isDiscover ? 'View Details' : 'Open Chat'),
-                  ),
-                ),
-              ],
-            )
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
