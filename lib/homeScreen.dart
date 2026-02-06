@@ -4,10 +4,15 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'goalScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:crypto/crypto.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,11 +24,96 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   GoogleSignInAccount? _user;
   bool _loading = false;
+  static const String privacyPolicyUrl = 'https://rectangular-ursinia-c6f.notion.site/2fde4ad88f4d80b5bdfae839aad997be';
+  static const String termsOfUseUrl = 'https://rectangular-ursinia-c6f.notion.site/Terms-of-Use-for-HabitSnap-2fde4ad88f4d8027a43eed349c14bdc3';
 
   @override
   void initState() {
     super.initState();
     _initializeGoogleSignIn();
+  }
+
+  // Generates a cryptographically secure random nonce
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  // Returns the SHA256 hash of the input string
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw 'Could not launch $url';
+    }
+  }
+
+  Future<UserCredential?> signInWithApple() async {
+    try {
+      final rawNonce = _generateNonce();
+      final nonce = _sha256ofString(rawNonce);
+
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+
+      print('Apple ID Token: ${appleCredential.identityToken}');
+
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+        accessToken: appleCredential.authorizationCode
+      );
+
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+
+      final user = userCredential.user!;
+      final userDoc =
+          FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+      final snapshot = await userDoc.get();
+
+      if (!snapshot.exists) {
+        await userDoc.set({
+          'username': _generateRandomUsername(),
+          'displayName':
+              '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'
+                  .trim(),
+          'email': user.email ?? '',
+          'photoUrl': '',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await getFcmToken();
+      await getUserLocation();
+
+      if (!mounted) return null;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const GoalScreen()),
+      );
+
+      return userCredential;
+    } catch (e) {
+      print('🍎 Apple sign-in error: $e');
+      return null;
+    }
   }
 
   Future<String?> getFcmToken() async {
@@ -229,6 +319,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     fixedSize: const Size(300, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: () async {
                     final userCredential = await signInWithGoogle();
@@ -237,10 +330,56 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
                   },
                   child: const Text(
-                    'CONTINUE WITH GOOGLE',
+                    'Sign in with Google',
                     style: TextStyle(fontSize: 18, color: Colors.white),
                   ),
                 ),
+                const SizedBox(height: 12),
+
+                if (Platform.isIOS)
+                  SizedBox(
+                    width: 300,
+                    height: 50,
+                    child: SignInWithAppleButton(
+                      onPressed: () async {
+                        await signInWithApple();
+                      },
+                      style: SignInWithAppleButtonStyle.black,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: () => _openUrl(privacyPolicyUrl),
+                          child: const Text(
+                            'Privacy Policy',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.black87,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                        const Text('  •  ', style: TextStyle(fontSize: 13)),
+                        GestureDetector(
+                          onTap: () => _openUrl(termsOfUseUrl),
+                          child: const Text(
+                            'Terms of Use',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.black87,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
               ],
             ),
           ),

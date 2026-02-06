@@ -3,12 +3,29 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'homeScreen.dart';
+import 'services/challengeService.dart';
+import 'utils/challengeUtils.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
-  Future<Map<String, dynamic>?> _getUserData() async {
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? _userData;
+  Color avatarColor = Colors.grey;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<Map<String, dynamic>?> _loadUserData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    Color avatarColor = Colors.grey;
     if (uid == null) return null;
 
     final doc = await FirebaseFirestore.instance
@@ -16,7 +33,12 @@ class ProfileScreen extends StatelessWidget {
         .doc(uid)
         .get();
 
-    return doc.data();
+    if (doc.exists) {
+      setState(() {
+        _userData = doc.data();
+        avatarColor = getColorForUser(uid); // same color logic
+      });
+    }
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -33,56 +55,56 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final username = _userData?['username'] ?? 'User';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
       ),
-      body: FutureBuilder<Map<String, dynamic>?>(
-        future: _getUserData(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final data = snapshot.data;
-          final username = data?['username'] ?? 'User';
-
-          return Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const CircleAvatar(
-                  radius: 40,
-                  backgroundImage: AssetImage('assets/user.jpg'),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  username,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => _signOut(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
-                    child: const Text(
-                      'Sign Out',
-                      style: TextStyle(color: Colors.white),
+      body: _userData == null
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: avatarColor,
+                    child: Text(
+                      username[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 32,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Text(
+                    username,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _signOut(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      child: const Text(
+                        'Sign Out',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        },
-      ),
     );
   }
 }
