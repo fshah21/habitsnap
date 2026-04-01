@@ -24,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   GoogleSignInAccount? _user;
   bool _loading = false;
+  bool _agreedToTerms = false;
   static const String privacyPolicyUrl = 'https://rectangular-ursinia-c6f.notion.site/2fde4ad88f4d80b5bdfae839aad997be';
   static const String termsOfUseUrl = 'https://rectangular-ursinia-c6f.notion.site/Terms-of-Use-for-HabitSnap-2fde4ad88f4d8027a43eed349c14bdc3';
 
@@ -315,6 +316,24 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Checkbox(
+                      value: _agreedToTerms,
+                      onChanged: (value) {
+                        setState(() {
+                          _agreedToTerms = value ?? false;
+                        });
+                      },
+                    ),
+                    const Text(
+                      "I agree to the Terms of Use & Privacy Policy",
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
@@ -323,12 +342,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: () async {
-                    final userCredential = await signInWithGoogle();
-                    if (userCredential != null) {
-                      print('Signed in as ${userCredential.user?.displayName}');
-                    }
-                  },
+                  onPressed: _agreedToTerms
+                    ? () async {
+                        final userCredential = await signInWithGoogle();
+                        if (userCredential != null) {
+                          print('Signed in as ${userCredential.user?.displayName}');
+                        }
+                      }
+                    : null,
                   child: const Text(
                     'Sign in with Google',
                     style: TextStyle(fontSize: 18, color: Colors.white),
@@ -341,9 +362,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: 300,
                     height: 50,
                     child: SignInWithAppleButton(
-                      onPressed: () async {
-                        await signInWithApple();
-                      },
+                      onPressed: _agreedToTerms
+                        ? () async {
+                            await signInWithApple();
+                          }
+                        : null,
                       style: SignInWithAppleButtonStyle.black,
                     ),
                   ),

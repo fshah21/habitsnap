@@ -43,6 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
   DateTime? _lastUploadDate;
   bool _showTodayStatus = true;
   final totalDays = 7; // or challenge['totalDays']
+  Set<String> _blockedUsers = {};
 
   @override
   void initState() {
@@ -59,12 +60,25 @@ class _ChatScreenState extends State<ChatScreen> {
       _selectedImage = widget.preloadedImage;
     }
     _loadLastUpload();
+    _loadBlockedUsers();
     Future.delayed(const Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
           _showTodayStatus = false;
         });
       }
+    });
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('blocked')
+        .get();
+
+    setState(() {
+      _blockedUsers = snapshot.docs.map((d) => d.id).toSet();
     });
   }
 
@@ -667,6 +681,84 @@ class _ChatScreenState extends State<ChatScreen> {
     );  
   }
 
+  void _showMessageOptions(String messageId, Map<String, dynamic> data) {
+    final messageUserId = data['userId'];
+
+    if (messageUserId == uid) return; // cannot report yourself
+
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.flag),
+              title: const Text("Report"),
+              onTap: () async {
+                Navigator.pop(context);
+                await _reportMessage(messageId, data);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block),
+              title: const Text("Block User"),
+              onTap: () async {
+                Navigator.pop(context);
+                await _blockUser(messageUserId);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _reportMessage(
+    String messageId,
+    Map<String, dynamic> data,
+  ) async {
+    await FirebaseFirestore.instance.collection('reports').add({
+      'messageId': messageId,
+      'reportedUserId': data['userId'],
+      'reportedBy': uid,
+      'challengeId': widget.challenge['id'],
+      'text': data['text'],
+      'imageUrl': data['imageUrl'],
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Message reported. Thank you.")),
+    );
+  }
+
+  Future<void> _blockUser(String blockedUserId) async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('blocked')
+        .doc(blockedUserId)
+        .set({
+      'blockedAt': FieldValue.serverTimestamp(),
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("User blocked")),
+    );
+  }
+
+  Future<bool> _isBlocked(String userId) async {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('blocked')
+        .doc(userId)
+        .get();
+
+    return doc.exists;
+  }
+
   Widget _buildChatTab() {
     return Column(
       children: [
@@ -706,6 +798,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 itemBuilder: (context, index) {
                   final data =
                       messages[index].data() as Map<String, dynamic>;
+
+                  if (_blockedUsers.contains(data['userId'])) {
+                    return const SizedBox.shrink();
+                  }
 
                   final currentTime =
                       (data['createdAtLocal'] as Timestamp).toDate();
@@ -804,80 +900,85 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                       const SizedBox(height: 4),
 
-                      Container(
-                        margin: EdgeInsets.only(
-                          left: isMe ? 0 : 22,
-                          right: isMe ? 22 : 0,
-                        ),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? Colors.green[200]
-                              : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            if (data['imageUrl'] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: GestureDetector(
-                                onDoubleTap: () =>
-                                    toggleLike(messages[index].id, data),
-                                child: Stack(
-                                  children: [
-                                    SizedBox(
-                                      height: 160,
-                                      width: 100,
-                                      child: CachedNetworkImage(
-                                        imageUrl: data['imageUrl'],
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-
-                                    if ((data['likes'] ?? []).isNotEmpty)
-                                      Positioned(
-                                        top: 6,
-                                        right: 6,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black54,
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.favorite,
-                                                color: Colors.red,
-                                                size: 14,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${(data['likes'] as List).length}',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                      GestureDetector(
+                          onLongPress: () {
+                            _showMessageOptions(messages[index].id, data);
+                          },
+                          child: Container(
+                            margin: EdgeInsets.only(
+                              left: isMe ? 0 : 22,
+                              right: isMe ? 22 : 0,
+                            ),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isMe
+                                ? Colors.green[200]
+                                : Colors.grey[300],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              if (data['imageUrl'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: GestureDetector(
+                                  onDoubleTap: () =>
+                                      toggleLike(messages[index].id, data),
+                                  child: Stack(
+                                    children: [
+                                      SizedBox(
+                                        height: 160,
+                                        width: 100,
+                                        child: CachedNetworkImage(
+                                          imageUrl: data['imageUrl'],
+                                          fit: BoxFit.cover,
                                         ),
                                       ),
-                                  ],
+
+                                      if ((data['likes'] ?? []).isNotEmpty)
+                                        Positioned(
+                                          top: 6,
+                                          right: 6,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black54,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.favorite,
+                                                  color: Colors.red,
+                                                  size: 14,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '${(data['likes'] as List).length}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (data['text'] != null &&
-                                data['text']
-                                    .toString()
-                                    .isNotEmpty)
-                              Text(data['text']),
-                          ],
-                        ),
+                              if (data['text'] != null &&
+                                  data['text']
+                                      .toString()
+                                      .isNotEmpty)
+                                Text(data['text']),
+                            ],
+                          ),
+                        )
                       ),
 
                       const SizedBox(height: 2),
