@@ -47,6 +47,8 @@
 	<string>We need access to your photo library to select images</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is used to help you discover nearby habit challenges and connect with people in your area.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We use your location to support background tracking for habits and activity reminders.</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UISupportedInterfaceOrientations</key>
