@@ -23,20 +23,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
-  Future<Map<String, dynamic>?> _loadUserData() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    Color avatarColor = Colors.grey;
-    if (uid == null) return null;
+  Future<void> _loadUserData() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
+      if (uid == null) return;
 
-    if (doc.exists) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!mounted) return;
+
+      if (doc.exists) {
+        setState(() {
+          _userData = doc.data();
+          avatarColor = getColorForUser(uid);
+        });
+      } else {
+        setState(() {
+          _userData = {};
+        });
+      }
+    } catch (e) {
+      print("PROFILE ERROR: $e");
+
+      if (!mounted) return;
+
       setState(() {
-        _userData = doc.data();
-        avatarColor = getColorForUser(uid); // same color logic
+        _userData = {};
       });
     }
   }
@@ -51,6 +67,129 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(builder: (_) => const HomeScreen()),
       (_) => false,
     );
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure you want to permanently delete your account? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) return;
+
+      final uid = user.uid;
+
+      // Delete Firestore user document
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .delete();
+
+    // =========================
+    // DELETE USER CHALLENGES
+    // userChallenges/{uid}/challenges/*
+    // =========================
+
+    final userChallengesRef = FirebaseFirestore.instance
+        .collection('userChallenges')
+        .doc(uid)
+        .collection('challenges');
+
+    final userChallengesSnapshot = await userChallengesRef.get();
+
+    for (final doc in userChallengesSnapshot.docs) {
+      await doc.reference.delete();
+    }
+
+    // Delete parent userChallenges doc
+    await FirebaseFirestore.instance
+        .collection('userChallenges')
+        .doc(uid)
+        .delete();
+
+    // =========================
+    // DELETE USER MESSAGES
+    // challenges/{challengeId}/messages/*
+    // where userId == uid
+    // =========================
+
+    final challengesSnapshot = await FirebaseFirestore.instance
+        .collection('challenges')
+        .get();
+
+    for (final challengeDoc in challengesSnapshot.docs) {
+      final messagesSnapshot = await challengeDoc.reference
+          .collection('messages')
+          .where('userId', isEqualTo: uid)
+          .get();
+
+      for (final messageDoc in messagesSnapshot.docs) {
+        await messageDoc.reference.delete();
+      }
+    }
+      // Delete Firebase Auth account
+      await user.delete();
+
+      // Clear local storage
+      await (await SharedPreferences.getInstance()).clear();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (_) => false,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account deleted successfully'),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      String message = 'Failed to delete account';
+
+      if (e.code == 'requires-recent-login') {
+        message =
+            'Please log in again before deleting your account.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong'),
+        ),
+      );
+    }
   }
 
   @override
@@ -98,6 +237,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: const Text(
                         'Sign Out',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _deleteAccount,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                      ),
+                      child: const Text(
+                        'Delete Account',
                         style: TextStyle(color: Colors.white),
                       ),
                     ),

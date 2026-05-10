@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "1063086508546",
+    "project_id": "habitsnap-bc5bf",
+    "storage_bucket": "habitsnap-bc5bf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1063086508546:android:c711989bc6c0ab85c3f51b",
+        "android_client_info": {
+          "package_name": "com.example.habitsnap"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1063086508546-73m1hfq8e343mu52e87v3d4e3ndgknrj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbSOLyg0mfd_X8W1jKPe8C-rmMYpX4m48"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1063086508546-73m1hfq8e343mu52e87v3d4e3ndgknrj.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1063086508546-j4224aailq2eefism2m8m6s43nau0s4c.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.habitsnap.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

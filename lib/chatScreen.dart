@@ -1091,6 +1091,9 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: proofs.length,
               itemBuilder: (context, index) {
                 final data = proofs[index].data() as Map<String, dynamic>;
+                if (_blockedUsers.contains(data['userId'])) {
+                  return const SizedBox.shrink();
+                }
                 final imageUrl = data['imageUrl'] as String?;
                 if (imageUrl == null || imageUrl.isEmpty) {
                   return const SizedBox.shrink();

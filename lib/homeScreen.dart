@@ -118,39 +118,61 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<String?> getFcmToken() async {
-    final messaging = FirebaseMessaging.instance;
+    try {
+      final messaging = FirebaseMessaging.instance;
 
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
-    String? fcmToken = await messaging.getToken();
-    print("🔥 FCM TOKEN: $fcmToken");
+      String? fcmToken;
 
-    if (Platform.isIOS) {
-      String? apnsToken = await messaging.getAPNSToken();
-      print('APNS token: $apnsToken');
+      if (Platform.isIOS) {
+        String? apnsToken;
+
+        // Wait for APNS token
+        for (int i = 0; i < 10; i++) {
+          apnsToken = await messaging.getAPNSToken();
+
+          if (apnsToken != null) {
+            break;
+          }
+
+          await Future.delayed(const Duration(seconds: 1));
+        }
+
+        print('APNS token: $apnsToken');
+
+        if (apnsToken == null) {
+          print('APNS token not available yet');
+          return null;
+        }
+
+        fcmToken = await messaging.getToken();
+      } else {
+        fcmToken = await messaging.getToken();
+      }
+
+      print("🔥 FCM TOKEN: $fcmToken");
 
       final uid = FirebaseAuth.instance.currentUser?.uid;
 
-      if (uid == null) {
-        return null;
+      if (uid != null && fcmToken != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .update({
+          'fcmToken': fcmToken,
+        });
       }
 
-      FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .update({'fcmToken': fcmToken});
-
       return fcmToken;
+    } catch (e) {
+      print("FCM TOKEN ERROR: $e");
+      return null;
     }
-
-    // final fcmToken = await messaging.getToken();
-    // print("FCM Device Token: $fcmToken");
-
-    return null;
   }
 
   Future<void> _initializeGoogleSignIn() async {
