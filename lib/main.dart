@@ -9,10 +9,31 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  runApp(MyApp());
+
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+  };
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    runApp(MyApp());
+  } catch (e, s) {
+    debugPrint("INIT ERROR: $e");
+    debugPrintStack(stackTrace: s);
+
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text("Error: $e"),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
